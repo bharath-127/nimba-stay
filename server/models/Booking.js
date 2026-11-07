@@ -11,7 +11,9 @@ const bookingSchema = new mongoose.Schema(
     checkIn: { type: String, required: true, match: ISO_DATE_REGEX },
     checkOut: { type: String, required: true, match: ISO_DATE_REGEX },
     nights: { type: Number, required: true, min: 1 },
-    // Snapshot of the room rate at booking time, so later tariff changes
+    // Nights actually billed — never below MIN_CHARGED_NIGHTS.
+    chargedNights: { type: Number, required: true, min: 1 },
+    // Snapshot of the rate at booking time, so later tariff changes
     // never silently alter an existing booking's total.
     pricePerNight: { type: Number, required: true, min: 0 },
     totalPrice: { type: Number, required: true, min: 0 },
@@ -20,6 +22,9 @@ const bookingSchema = new mongoose.Schema(
       enum: Object.values(BOOKING_STATUS),
       default: BOOKING_STATUS.CONFIRMED,
     },
+    // Set when the guest leaves before checkOut; the room is free from this day.
+    checkedOutOn: { type: String, default: null, match: ISO_DATE_REGEX },
+    checkedOutAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
@@ -33,9 +38,9 @@ bookingSchema.pre('validate', function enforceDateOrder() {
   }
 });
 
-// Supports the availability overlap query:
-//   { roomId: {$in}, status: 'confirmed', checkIn: {$lt: out}, checkOut: {$gt: in} }
+// Supports the availability overlap queries on confirmed and checked-out stays.
 bookingSchema.index({ roomId: 1, status: 1, checkIn: 1, checkOut: 1 });
+bookingSchema.index({ roomId: 1, status: 1, checkIn: 1, checkedOutOn: 1 });
 bookingSchema.index({ createdAt: -1 });
 
 export const Booking = mongoose.model('Booking', bookingSchema);

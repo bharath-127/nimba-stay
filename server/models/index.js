@@ -1,8 +1,10 @@
+import { RoomType } from './RoomType.js';
 import { Room } from './Room.js';
+import { RoomBlock } from './RoomBlock.js';
 import { Booking } from './Booking.js';
 import { RoomNight } from './RoomNight.js';
 
-export { Room, Booking, RoomNight };
+export { RoomType, Room, RoomBlock, Booking, RoomNight };
 
 /**
  * Make sure every declared index exists before the API accepts traffic.
@@ -10,5 +12,11 @@ export { Room, Booking, RoomNight };
  * the guarantee silently disappears, so this runs on every startup.
  */
 export async function ensureIndexes() {
-  await Promise.all([Room.syncIndexes(), Booking.syncIndexes(), RoomNight.syncIndexes()]);
+  await Promise.all([
+    RoomType.syncIndexes(),
+    Room.syncIndexes(),
+    RoomBlock.syncIndexes(),
+    Booking.syncIndexes(),
+    RoomNight.syncIndexes(),
+  ]);
 }

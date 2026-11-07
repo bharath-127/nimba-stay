@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { api, useTestDatabase, roomIdByNumber, validBooking, Booking, RoomNight } from '../helpers/setup.js';
+import { api, useTestDatabase, roomIdByNumber, validBooking, blockRoom, Room, RoomType, Booking, RoomNight } from '../helpers/setup.js';
 
 useTestDatabase();
 
@@ -20,9 +20,11 @@ describe('POST /api/bookings — success', () => {
       checkIn: '2026-11-20',
       checkOut: '2026-11-23',
       nights: 3,
+      chargedNights: 3,
       pricePerNight: 5500,
       totalPrice: 16500,
       status: 'confirmed',
+      checkedOutOn: null,
     });
     expect(res.body.data.id).toMatch(/^[0-9a-f]{24}$/);
   });
@@ -31,17 +33,33 @@ describe('POST /api/bookings — success', () => {
     const roomId = await roomIdByNumber('STE-401');
     const res = await post(validBooking({ roomId, checkIn: '2026-12-01', checkOut: '2026-12-05' }));
     expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({ nights: 4, chargedNights: 4, totalPrice: 48000 });
 
     const nights = await RoomNight.find({ bookingId: res.body.data.id }).sort({ date: 1 }).lean();
     expect(nights.map((n) => n.date)).toEqual(['2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04']);
   });
 
-  it('RULE 9: ignores any price supplied by the client', async () => {
+  it('charges a 1-night stay for the 3-night minimum but reserves only 1 night', async () => {
     const roomId = await roomIdByNumber('STD-101');
-    const res = await post({ ...validBooking({ roomId }), totalPrice: 1, pricePerNight: 1 });
+    const res = await post(validBooking({ roomId, checkIn: '2026-12-01', checkOut: '2026-12-02' }));
     expect(res.status).toBe(201);
-    expect(res.body.data.totalPrice).toBe(10500);
-    expect(res.body.data.pricePerNight).toBe(3500);
+    expect(res.body.data).toMatchObject({ nights: 1, chargedNights: 3, pricePerNight: 3500, totalPrice: 10500 });
+    expect(await RoomNight.countDocuments({ bookingId: res.body.data.id })).toBe(1);
+  });
+
+  it('RULE 9: ignores any price supplied by the client and uses the room type rate', async () => {
+    const roomId = await roomIdByNumber('STD-101');
+    const res = await post({ ...validBooking({ roomId }), totalPrice: 1, pricePerNight: 1, chargedNights: 1 });
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({ pricePerNight: 3500, chargedNights: 3, totalPrice: 10500 });
+  });
+
+  it('snapshots the rate: a later tariff change does not alter the booking', async () => {
+    const roomId = await roomIdByNumber('STD-102');
+    const res = await post(validBooking({ roomId }));
+    await RoomType.updateOne({ name: 'Standard' }, { pricePerNight: 9999 });
+    const list = await api.get('/api/bookings');
+    expect(list.body.data.find((b) => b.id === res.body.data.id)).toMatchObject({ pricePerNight: 3500, totalPrice: 10500 });
   });
 
   it('trims the guest name and accepts a numeric phone', async () => {
@@ -130,7 +148,46 @@ describe('POST /api/bookings — other validation (RULE 4)', () => {
   });
 });
 
-describe('POST /api/bookings — conflicts (RULES 1, 2, 3, 6)', () => {
+describe('POST /api/bookings — RULE 3: rooms out of service', () => {
+  it('refuses the seeded maintenance room with 409 and leaves no data behind', async () => {
+    const dlx203 = await roomIdByNumber('DLX-203');
+    const res = await post(validBooking({ roomId: dlx203, checkIn: '2026-12-01', checkOut: '2026-12-02' }));
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('ROOM_UNAVAILABLE');
+    expect(res.body.error.message).toMatch(/blocked until further notice/i);
+    expect(await Booking.countDocuments({ roomId: dlx203 })).toBe(0);
+    expect(await RoomNight.countDocuments({ roomId: dlx203 })).toBe(0);
+  });
+
+  it('refuses a room blocked for any night of the stay, names the end date', async () => {
+    await blockRoom('STE-401', '2026-11-22', '2026-11-24', 'Deep clean');
+    const res = await post(validBooking({ roomId: await roomIdByNumber('STE-401') }));
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toMatch(/blocked until 2026-11-24 \(Deep clean\)/);
+  });
+
+  it('allows a room whose block ends on the check-in day or starts on the check-out day', async () => {
+    await blockRoom('STE-401', '2026-11-10', '2026-11-20');
+    await blockRoom('STE-401', '2026-11-23', '2026-11-30');
+    expect((await post(validBooking({ roomId: await roomIdByNumber('STE-401') }))).status).toBe(201);
+  });
+
+  it('refuses an inactive room with 409', async () => {
+    await Room.updateOne({ roomNumber: 'STE-402' }, { isActive: false });
+    const res = await post(validBooking({ roomId: await roomIdByNumber('STE-402') }));
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toMatch(/not in service/i);
+  });
+
+  it('refuses a room whose type is inactive with 409', async () => {
+    await RoomType.updateOne({ name: 'Suite' }, { isActive: false });
+    const res = await post(validBooking({ roomId: await roomIdByNumber('STE-402') }));
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('ROOM_UNAVAILABLE');
+  });
+});
+
+describe('POST /api/bookings — conflicts (RULES 1, 2, 6)', () => {
   let dlx201;
   let dlx202;
 
@@ -159,35 +216,29 @@ describe('POST /api/bookings — conflicts (RULES 1, 2, 3, 6)', () => {
     expect(await RoomNight.countDocuments({ roomId: dlx201 })).toBe(3);
   });
 
-  it('RULE 1: allows check-in on the previous guest\'s check-out day', async () => {
-    const res = await post(validBooking({ roomId: dlx201, guestName: 'Next Guest', checkIn: '2026-11-23', checkOut: '2026-11-25' }));
-    expect(res.status).toBe(201);
+  it("RULE 1: allows check-in on the previous guest's check-out day", async () => {
+    expect((await post(validBooking({ roomId: dlx201, guestName: 'Next Guest', checkIn: '2026-11-23', checkOut: '2026-11-25' }))).status).toBe(201);
   });
 
-  it('RULE 1: allows check-out on the next guest\'s check-in day', async () => {
-    const res = await post(validBooking({ roomId: dlx201, guestName: 'Earlier Guest', checkIn: '2026-11-18', checkOut: '2026-11-20' }));
-    expect(res.status).toBe(201);
+  it("RULE 1: allows check-out on the next guest's check-in day", async () => {
+    expect((await post(validBooking({ roomId: dlx201, guestName: 'Earlier Guest', checkIn: '2026-11-18', checkOut: '2026-11-20' }))).status).toBe(201);
   });
 
   it('RULE 2: a cancelled booking does not cause a conflict', async () => {
     const list = await api.get('/api/bookings');
     await api.patch(`/api/bookings/${list.body.data[0].id}/cancel`).expect(200);
-
-    const res = await post(validBooking({ roomId: dlx201, guestName: 'Replacement Guest' }));
-    expect(res.status).toBe(201);
+    expect((await post(validBooking({ roomId: dlx201, guestName: 'Replacement Guest' }))).status).toBe(201);
   });
 
-  it('RULE 3: refuses to book a maintenance room with 409', async () => {
-    const dlx203 = await roomIdByNumber('DLX-203');
-    const res = await post(validBooking({ roomId: dlx203, checkIn: '2026-12-01', checkOut: '2026-12-02' }));
-    expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('ROOM_UNAVAILABLE');
-    expect(await Booking.countDocuments({ roomId: dlx203 })).toBe(0);
+  it('an early check-out lets the next guest arrive the same day', async () => {
+    const list = await api.get('/api/bookings');
+    await api.patch(`/api/bookings/${list.body.data[0].id}/check-out`).send({ date: '2026-11-21' }).expect(200);
+    expect((await post(validBooking({ roomId: dlx201, guestName: 'Next Guest', checkIn: '2026-11-21', checkOut: '2026-11-23' }))).status).toBe(201);
+    expect((await post(validBooking({ roomId: dlx201, guestName: 'Too Early', checkIn: '2026-11-20', checkOut: '2026-11-21' }))).status).toBe(409);
   });
 
   it('allows a different room for the same dates', async () => {
-    const res = await post(validBooking({ roomId: dlx202 }));
-    expect(res.status).toBe(201);
+    expect((await post(validBooking({ roomId: dlx202 }))).status).toBe(201);
   });
 });
 

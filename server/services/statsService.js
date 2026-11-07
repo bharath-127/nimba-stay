@@ -1,38 +1,49 @@
 import { Room, Booking } from '../models/index.js';
-import { ROOM_STATUS, BOOKING_STATUS } from '../utils/constants.js';
-import { addDays, todayIso } from '../utils/dates.js';
+import { BOOKING_STATUS } from '../utils/constants.js';
+import { addDays, countNights, todayIso } from '../utils/dates.js';
 import { findAvailableRooms } from './availabilityService.js';
+import { blockedRoomIds } from './roomBlockService.js';
 
 /**
- * Dashboard summary for one calendar day (default: today, server time).
- *
- * "Available tonight" deliberately reuses findAvailableRooms() for the
- * one-night stay [date, date + 1), so the summary card can never disagree
- * with what the availability search would return: maintenance rooms are
- * excluded, cancelled bookings block nothing, and a guest checking out on
- * `date` does not occupy that night.
+ * Dashboard summary for a stay range [checkIn, checkOut). With no range it
+ * describes tonight. "Available" deliberately reuses findAvailableRooms(),
+ * so the summary card can never disagree with the availability search for
+ * the same dates.
  */
-export async function getDashboardStats({ date } = {}) {
-  const day = date ?? todayIso();
+export async function getDashboardStats({ checkIn, checkOut, date } = {}) {
+  const start = checkIn ?? date ?? todayIso();
+  const end = checkOut ?? addDays(start, 1);
+  const today = todayIso();
 
-  const [totalRooms, maintenanceRooms, confirmedBookings, currentOrUpcomingBookings, tonight] = await Promise.all([
-    Room.countDocuments(),
-    Room.countDocuments({ status: ROOM_STATUS.MAINTENANCE }),
+  const [rooms, confirmedBookings, currentOrUpcomingBookings, inHouseTonight, available] = await Promise.all([
+    Room.find({}, { isActive: 1 }).lean(),
     Booking.countDocuments({ status: BOOKING_STATUS.CONFIRMED }),
-    Booking.countDocuments({ status: BOOKING_STATUS.CONFIRMED, checkOut: { $gt: day } }),
-    findAvailableRooms({ checkIn: day, checkOut: addDays(day, 1) }),
+    Booking.countDocuments({ status: BOOKING_STATUS.CONFIRMED, checkOut: { $gt: today } }),
+    Booking.countDocuments({ status: BOOKING_STATUS.CONFIRMED, checkIn: { $lte: today }, checkOut: { $gt: today } }),
+    findAvailableRooms({ checkIn: start, checkOut: end }),
   ]);
 
-  const activeRooms = totalRooms - maintenanceRooms;
+  const activeRooms = rooms.filter((r) => r.isActive);
+  const blocked = await blockedRoomIds(activeRooms.map((r) => r._id), start, end);
+
+  const totalRooms = rooms.length;
+  const inactiveRooms = totalRooms - activeRooms.length;
+  const maintenanceRooms = blocked.length;
+  const availableRooms = available.count;
+  const occupiedRooms = Math.max(activeRooms.length - maintenanceRooms - availableRooms, 0);
 
   return {
-    date: day,
+    checkIn: start,
+    checkOut: end,
+    nights: countNights(start, end),
     totalRooms,
-    activeRooms,
+    activeRooms: activeRooms.length,
+    inactiveRooms,
     maintenanceRooms,
-    availableTonight: tonight.count,
-    occupiedTonight: activeRooms - tonight.count,
+    availableRooms,
+    occupiedRooms,
     confirmedBookings,
     currentOrUpcomingBookings,
+    inHouseTonight,
   };
 }

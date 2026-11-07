@@ -1,29 +1,53 @@
 {
   "info": {
     "name": "Nimba Stay API",
-    "description": "Front-desk room availability and booking API for Nimba Nature Cure.\n\nSet `baseUrl` (default http://localhost:5000/api). Run **Availability → Deluxe rooms** first: it stores the first free room's id in `roomId`, which the booking requests use. Send **Create booking → 201** twice to see the 409 conflict.",
+    "description": "Front-desk room availability and booking API for Nimba Nature Cure.\n\nSet `baseUrl` (default http://localhost:5000/api). Run **Availability → Deluxe rooms** first: it stores the first free room's id in `roomId`, which the booking requests use. Send **Create booking → 201** twice to see the 409 conflict. The **Blocks** folder takes a room out of service for a period and lifts it again; **Check out** frees a guest's remaining nights early.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:5000/api" },
     { "key": "roomId", "value": "" },
     { "key": "bookingId", "value": "" },
-    { "key": "maintenanceRoomId", "value": "" }
+    { "key": "blockRoomId", "value": "" },
+    { "key": "blockId", "value": "" }
   ],
   "item": [
     {
       "name": "Health",
       "request": { "method": "GET", "url": "{{baseUrl}}/health" },
       "event": [{ "listen": "test", "script": { "exec": [
-        "pm.test('200 ok', () => pm.response.to.have.status(200));",
+        "pm.test('200 ok with database connected', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data.database).to.eql('connected'); });",
         "pm.test('reports transaction mode', () => pm.expect(pm.response.json().data.transactions).to.be.oneOf(['enabled','fallback']));"
       ] } }]
     },
     {
-      "name": "Rooms → categories",
+      "name": "Rooms → categories (room types with rates)",
       "request": { "method": "GET", "url": "{{baseUrl}}/rooms/categories" },
       "event": [{ "listen": "test", "script": { "exec": [
-        "pm.test('200 with 4 categories', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data).to.have.length(4); });"
+        "pm.test('200 with 4 active types, cheapest first', () => { pm.response.to.have.status(200); const t = pm.response.json().data; pm.expect(t).to.have.length(4); pm.expect(t[0].pricePerNight).to.be.at.most(t[3].pricePerNight); t.forEach(x => pm.expect(x).to.include.keys('name','pricePerNight')); });"
+      ] } }]
+    },
+    {
+      "name": "Rooms → all rooms",
+      "request": { "method": "GET", "url": "{{baseUrl}}/rooms" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 with 10 rooms incl. rate, beds, isActive', () => { pm.response.to.have.status(200); const r = pm.response.json().data; pm.expect(r).to.have.length(10); r.forEach(x => pm.expect(x).to.include.keys('roomNumber','category','bedCount','isActive','pricePerNight')); });",
+        "const ste = pm.response.json().data.find(r => r.roomNumber === 'STE-402'); if (ste) pm.collectionVariables.set('blockRoomId', ste.id);"
+      ] } }]
+    },
+    {
+      "name": "Stats → tonight (no range)",
+      "request": { "method": "GET", "url": "{{baseUrl}}/stats" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 one-night summary', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data.nights).to.eql(1); });"
+      ] } }]
+    },
+    {
+      "name": "Stats → for a stay range",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/stats?checkIn=2026-11-20&checkOut=2026-11-23", "host": ["{{baseUrl}}"], "path": ["stats"], "query": [ { "key": "checkIn", "value": "2026-11-20" }, { "key": "checkOut", "value": "2026-11-23" } ] } },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 with the expected fields', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data).to.include.keys('totalRooms','activeRooms','inactiveRooms','maintenanceRooms','availableRooms','occupiedRooms','confirmedBookings','currentOrUpcomingBookings','inHouseTonight'); });",
+        "pm.test('3 nights', () => pm.expect(pm.response.json().data.nights).to.eql(3));"
       ] } }]
     },
     {
@@ -43,13 +67,14 @@
       "event": [{ "listen": "test", "script": { "exec": [
         "pm.test('200 ok', () => pm.response.to.have.status(200));",
         "const data = pm.response.json().data;",
-        "pm.test('3 nights, price = nights x rate', () => { pm.expect(data.nights).to.eql(3); data.rooms.forEach(r => pm.expect(r.totalPrice).to.eql(r.pricePerNight * 3)); });",
-        "pm.test('maintenance room DLX-203 is never listed', () => pm.expect(data.rooms.map(r => r.roomNumber)).to.not.include('DLX-203'));",
+        "pm.test('3 nights, price = charged nights x type rate', () => { pm.expect(data.nights).to.eql(3); pm.expect(data.chargedNights).to.eql(3); data.rooms.forEach(r => pm.expect(r.totalPrice).to.eql(r.pricePerNight * r.chargedNights)); });",
+        "pm.test('grouped by category', () => { pm.expect(data.groups).to.be.an('array'); pm.expect(data.groups[0].category).to.eql('Deluxe'); });",
+        "pm.test('blocked room DLX-203 is never listed', () => pm.expect(data.rooms.map(r => r.roomNumber)).to.not.include('DLX-203'));",
         "if (data.rooms.length) pm.collectionVariables.set('roomId', data.rooms[0].id);"
       ] } }]
     },
     {
-      "name": "Availability → all categories",
+      "name": "Availability → all categories, 1 night (minimum charge applies)",
       "request": {
         "method": "GET",
         "url": {
@@ -58,7 +83,12 @@
           "query": [ { "key": "checkIn", "value": "2026-11-20" }, { "key": "checkOut", "value": "2026-11-21" } ]
         }
       },
-      "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 ok', () => pm.response.to.have.status(200));"] } }]
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 ok', () => pm.response.to.have.status(200));",
+        "const d = pm.response.json().data;",
+        "pm.test('1 night charged as 3', () => { pm.expect(d.nights).to.eql(1); pm.expect(d.chargedNights).to.eql(3); });",
+        "pm.test('groups most expensive first', () => { const p = d.groups.map(g => g.pricePerNight); pm.expect([...p].sort((a,b)=>b-a)).to.eql(p); });"
+      ] } }]
     },
     {
       "name": "Availability → 400 check-out not after check-in",
@@ -96,7 +126,7 @@
           "query": [ { "key": "checkIn", "value": "2026-11-20" }, { "key": "checkOut", "value": "2026-11-21" }, { "key": "category", "value": "Penthouse" } ]
         }
       },
-      "event": [{ "listen": "test", "script": { "exec": ["pm.test('400', () => pm.response.to.have.status(400));"] } }]
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('400 naming the valid categories', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().error.details[0].message).to.include('Standard'); });"] } }]
     },
     {
       "name": "Create booking → 201 (send twice for 409)",
@@ -110,7 +140,7 @@
         "pm.test('201 created or 409 if already booked', () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));",
         "if (pm.response.code === 201) {",
         "  const b = pm.response.json().data;",
-        "  pm.test('server computed the total', () => pm.expect(b.totalPrice).to.eql(b.pricePerNight * b.nights));",
+        "  pm.test('server computed the total from charged nights', () => pm.expect(b.totalPrice).to.eql(b.pricePerNight * b.chargedNights));",
         "  pm.test('status confirmed', () => pm.expect(b.status).to.eql('confirmed'));",
         "  pm.collectionVariables.set('bookingId', b.id);",
         "} else {",
@@ -166,14 +196,71 @@
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 array', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data).to.be.an('array'); });"] } }]
     },
     {
-      "name": "Bookings → cancel (frees the nights)",
+      "name": "Bookings → check out early (frees the remaining nights)",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/bookings/{{bookingId}}/check-out",
+        "body": { "mode": "raw", "raw": "{\n  \"date\": \"2026-11-21\"\n}" }
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 checked_out on the given day, or 409 if not applicable', () => { pm.expect(pm.response.code).to.be.oneOf([200, 409]); if (pm.response.code === 200) { const b = pm.response.json().data; pm.expect(b.status).to.eql('checked_out'); pm.expect(b.checkedOutOn).to.eql('2026-11-21'); } });"
+      ] } }]
+    },
+    {
+      "name": "Bookings → cancel (409 after check-out; 200 otherwise)",
       "request": { "method": "PATCH", "url": "{{baseUrl}}/bookings/{{bookingId}}/cancel" },
-      "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 cancelled', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data.status).to.eql('cancelled'); });"] } }]
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 cancelled, or 409 BOOKING_ALREADY_CHECKED_OUT', () => { pm.expect(pm.response.code).to.be.oneOf([200, 409]); if (pm.response.code === 200) pm.expect(pm.response.json().data.status).to.eql('cancelled'); else pm.expect(pm.response.json().error.code).to.eql('BOOKING_ALREADY_CHECKED_OUT'); });"
+      ] } }]
     },
     {
       "name": "Bookings → 404 cancel unknown",
       "request": { "method": "PATCH", "url": "{{baseUrl}}/bookings/64b000000000000000000000/cancel" },
       "event": [{ "listen": "test", "script": { "exec": ["pm.test('404', () => pm.response.to.have.status(404));"] } }]
+    },
+    {
+      "name": "Blocks → list current and upcoming",
+      "request": { "method": "GET", "url": "{{baseUrl}}/rooms/blocks" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 with the seeded DLX-203 block', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data.some(b => b.room && b.room.roomNumber === 'DLX-203')).to.be.true; });"
+      ] } }]
+    },
+    {
+      "name": "Blocks → create (STE-402, 1–5 Dec) stores blockId",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/rooms/{{blockRoomId}}/blocks",
+        "body": { "mode": "raw", "raw": "{\n  \"startDate\": \"2026-12-01\",\n  \"endDate\": \"2026-12-05\",\n  \"reason\": \"Plumbing repair\"\n}" }
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('201 created, or 409 if a guest is booked then', () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));",
+        "if (pm.response.code === 201) pm.collectionVariables.set('blockId', pm.response.json().data.id);"
+      ] } }]
+    },
+    {
+      "name": "Availability → STE-402 hidden while blocked",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/availability?checkIn=2026-12-02&checkOut=2026-12-04&category=Suite", "host": ["{{baseUrl}}"], "path": ["availability"], "query": [ { "key": "checkIn", "value": "2026-12-02" }, { "key": "checkOut", "value": "2026-12-04" }, { "key": "category", "value": "Suite" } ] }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('STE-402 not offered', () => pm.expect(pm.response.json().data.rooms.map(r => r.roomNumber)).to.not.include('STE-402'));"] } }]
+    },
+    {
+      "name": "Blocks → 400 end before start",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/rooms/{{blockRoomId}}/blocks",
+        "body": { "mode": "raw", "raw": "{\n  \"startDate\": \"2026-12-05\",\n  \"endDate\": \"2026-12-01\"\n}" }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('400', () => pm.response.to.have.status(400));"] } }]
+    },
+    {
+      "name": "Blocks → lift",
+      "request": { "method": "DELETE", "url": "{{baseUrl}}/rooms/blocks/{{blockId}}" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 lifted', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data.lifted).to.be.oneOf(['removed','ended-today','already-ended']); });"] } }]
     }
   ]
 }

@@ -43,6 +43,13 @@ describe('PATCH /api/bookings/:id/cancel', () => {
     expect(again.body.data.status).toBe('cancelled');
   });
 
+  it('refuses to cancel a guest who has already checked out', async () => {
+    await api.patch(`/api/bookings/${bookingId}/check-out`).send({ date: '2026-11-21' }).expect(200);
+    const res = await api.patch(`/api/bookings/${bookingId}/cancel`);
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('BOOKING_ALREADY_CHECKED_OUT');
+  });
+
   it('returns 404 for an unknown booking', async () => {
     const res = await api.patch('/api/bookings/64b000000000000000000000/cancel');
     expect(res.status).toBe(404);

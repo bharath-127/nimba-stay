@@ -1,11 +1,12 @@
 import mongoose from 'mongoose';
-import { Room, Booking, RoomNight } from '../models/index.js';
+import { Room, RoomType, RoomBlock, Booking, RoomNight } from '../models/index.js';
 import { supportsTransactions } from '../config/db.js';
 import { AppError } from '../utils/AppError.js';
 import { isDuplicateKeyError } from '../utils/mongoErrors.js';
-import { ROOM_STATUS, BOOKING_STATUS } from '../utils/constants.js';
-import { nightsBetween } from '../utils/dates.js';
-import { calculateTotalPrice } from '../utils/pricing.js';
+import { BOOKING_STATUS } from '../utils/constants.js';
+import { nightsBetween, todayIso } from '../utils/dates.js';
+import { priceStay } from '../utils/pricing.js';
+import { blockOverlapFilter } from './roomBlockService.js';
 
 const conflictError = () =>
   AppError.conflict('ROOM_ALREADY_BOOKED', 'This room is no longer available for the selected dates');
@@ -23,12 +24,22 @@ const conflictError = () =>
  *   - Standalone MongoDB: no transactions, so we insert the nights first, then
  *     the booking, and compensate (delete the nights) if either step fails.
  *     The unique index still guarantees that no two bookings share a night.
+ *
+ * Room state (inactive, inactive type, dated block) is checked up front;
+ * those are not covered by the night index and return 409 ROOM_UNAVAILABLE.
  */
 export async function createBooking({ roomId, guestName, phone, checkIn, checkOut }) {
   const room = await Room.findById(roomId).lean();
   if (!room) throw AppError.notFound('ROOM_NOT_FOUND', 'Room not found');
-  if (room.status === ROOM_STATUS.MAINTENANCE) {
-    throw AppError.conflict('ROOM_UNAVAILABLE', `Room ${room.roomNumber} is under maintenance and cannot be booked`);
+  if (!room.isActive) throw AppError.conflict('ROOM_UNAVAILABLE', `Room ${room.roomNumber} is not in service`);
+
+  const type = await RoomType.findOne({ name: room.category, isActive: true }).lean();
+  if (!type) throw AppError.conflict('ROOM_UNAVAILABLE', `Room ${room.roomNumber}'s category is not bookable`);
+
+  const block = await RoomBlock.findOne({ roomId: room._id, ...blockOverlapFilter(checkIn, checkOut) }).lean();
+  if (block) {
+    const until = block.endDate ? `until ${block.endDate}` : 'until further notice';
+    throw AppError.conflict('ROOM_UNAVAILABLE', `Room ${room.roomNumber} is blocked ${until} (${block.reason})`);
   }
 
   const nightDates = nightsBetween(checkIn, checkOut);
@@ -38,9 +49,7 @@ export async function createBooking({ roomId, guestName, phone, checkIn, checkOu
     phone,
     checkIn,
     checkOut,
-    nights: nightDates.length,
-    pricePerNight: room.pricePerNight,
-    totalPrice: calculateTotalPrice(nightDates.length, room.pricePerNight),
+    ...priceStay(nightDates.length, type.pricePerNight),
     status: BOOKING_STATUS.CONFIRMED,
   };
 
@@ -96,31 +105,70 @@ async function createWithCompensation(bookingData, nightDates) {
 }
 
 /**
- * Cancel a booking and release its nights. Idempotent.
- * In fallback mode the status flips first and the nights are released second:
- * if the second step fails the room stays blocked (safe) rather than becoming
- * bookable while a confirmed booking still exists (unsafe).
+ * Run `mutate` (status change on the booking document) and then `release`
+ * (delete RoomNight rows) atomically when transactions are available.
+ * In fallback mode the status flips first and the nights are released
+ * second: if the second step fails the room stays blocked (safe) rather
+ * than becoming bookable while an active booking still exists (unsafe).
  */
+async function updateStatusAndReleaseNights(booking, releaseFilter) {
+  if (supportsTransactions()) {
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await booking.save({ session });
+        await RoomNight.deleteMany(releaseFilter, { session });
+      });
+    } finally {
+      await session.endSession();
+    }
+  } else {
+    await booking.save();
+    await RoomNight.deleteMany(releaseFilter);
+  }
+}
+
+/** Cancel a booking and release every night. Idempotent. */
 export async function cancelBooking(bookingId) {
   const booking = await Booking.findById(bookingId);
   if (!booking) throw AppError.notFound('BOOKING_NOT_FOUND', 'Booking not found');
+  if (booking.status === BOOKING_STATUS.CHECKED_OUT) {
+    throw AppError.conflict('BOOKING_ALREADY_CHECKED_OUT', 'This guest has already checked out; the booking cannot be cancelled');
+  }
 
   if (booking.status !== BOOKING_STATUS.CANCELLED) {
     booking.status = BOOKING_STATUS.CANCELLED;
-    if (supportsTransactions()) {
-      const session = await mongoose.startSession();
-      try {
-        await session.withTransaction(async () => {
-          await booking.save({ session });
-          await RoomNight.deleteMany({ bookingId: booking._id }, { session });
-        });
-      } finally {
-        await session.endSession();
-      }
-    } else {
-      await booking.save();
-      await RoomNight.deleteMany({ bookingId: booking._id });
+    await updateStatusAndReleaseNights(booking, { bookingId: booking._id });
+  }
+
+  const room = await Room.findById(booking.roomId).lean();
+  return serializeBooking(booking, room);
+}
+
+/**
+ * Check a guest out. Leaving before `checkOut` frees the remaining nights
+ * from `date` (default today) onwards, so the room can be re-let early.
+ * Idempotent for an already checked-out booking.
+ */
+export async function checkOutBooking(bookingId, { date } = {}) {
+  const booking = await Booking.findById(bookingId);
+  if (!booking) throw AppError.notFound('BOOKING_NOT_FOUND', 'Booking not found');
+  if (booking.status === BOOKING_STATUS.CANCELLED) {
+    throw AppError.conflict('BOOKING_CANCELLED', 'A cancelled booking cannot be checked out');
+  }
+
+  if (booking.status !== BOOKING_STATUS.CHECKED_OUT) {
+    const requested = date ?? todayIso();
+    if (requested < booking.checkIn) {
+      throw AppError.conflict('BOOKING_NOT_STARTED', `This stay only begins on ${booking.checkIn}`);
     }
+    // Leaving on or after the planned check-out frees nothing extra.
+    const checkedOutOn = requested < booking.checkOut ? requested : booking.checkOut;
+
+    booking.status = BOOKING_STATUS.CHECKED_OUT;
+    booking.checkedOutOn = checkedOutOn;
+    booking.checkedOutAt = new Date();
+    await updateStatusAndReleaseNights(booking, { bookingId: booking._id, date: { $gte: checkedOutOn } });
   }
 
   const room = await Room.findById(booking.roomId).lean();
@@ -147,9 +195,12 @@ function serializeBooking(booking, room) {
     checkIn: b.checkIn,
     checkOut: b.checkOut,
     nights: b.nights,
+    chargedNights: b.chargedNights,
     pricePerNight: b.pricePerNight,
     totalPrice: b.totalPrice,
     status: b.status,
+    checkedOutOn: b.checkedOutOn ?? null,
+    checkedOutAt: b.checkedOutAt ?? null,
     createdAt: b.createdAt,
   };
 }

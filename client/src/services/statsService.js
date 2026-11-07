@@ -1,11 +1,11 @@
 import { api } from './api.js';
 
 /**
- * GET /api/stats?date=YYYY-MM-DD
- * The browser's local date is sent so "tonight" means the front desk's
- * tonight, not the server's.
+ * GET /api/stats?checkIn=&checkOut=
+ * With a range the summary describes those dates; without one, tonight.
  */
-export async function getStats({ date } = {}) {
-  const { data } = await api.get('/stats', { params: date ? { date } : {} });
+export async function getStats({ checkIn, checkOut } = {}) {
+  const params = checkIn && checkOut ? { checkIn, checkOut } : {};
+  const { data } = await api.get('/stats', { params });
   return data;
 }

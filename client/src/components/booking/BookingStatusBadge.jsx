@@ -6,6 +6,11 @@ const STATUS = {
     className: 'bg-brand-100 text-brand-800 ring-brand-200',
     icon: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
   },
+  checked_out: {
+    label: 'Checked out',
+    className: 'bg-sky-100 text-sky-800 ring-sky-200',
+    icon: 'M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75',
+  },
   cancelled: {
     label: 'Cancelled',
     className: 'bg-slate-100 text-slate-600 ring-slate-200',

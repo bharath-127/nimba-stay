@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import BookingForm, { BOOKING_FORM_ID } from './BookingForm.jsx';
 
-const room = { id: 'r1', roomNumber: 'DLX-201', category: 'Deluxe', pricePerNight: 5500, nights: 3, totalPrice: 16500 };
+const room = { id: 'r1', roomNumber: 'DLX-201', category: 'Deluxe', bedCount: 2, pricePerNight: 5500, nights: 3, chargedNights: 3, totalPrice: 16500 };
 
 function setup(props = {}) {
   const onSubmit = vi.fn();

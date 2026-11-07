@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import BookingPanel from './BookingPanel.jsx';
 import { ApiError } from '../../services/api.js';
 
-const room = { id: 'r1', roomNumber: 'DLX-201', category: 'Deluxe', pricePerNight: 5500, nights: 3, totalPrice: 16500 };
+const room = { id: 'r1', roomNumber: 'DLX-201', category: 'Deluxe', bedCount: 2, pricePerNight: 5500, nights: 3, chargedNights: 3, totalPrice: 16500 };
 const confirmed = {
   id: '6aeef3e678bcf59986415778',
   room: { id: 'r1', roomNumber: 'DLX-201', category: 'Deluxe' },

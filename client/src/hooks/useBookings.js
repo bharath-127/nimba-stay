@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getBookings, cancelBooking } from '../services/bookingService.js';
+import { getBookings, cancelBooking, checkOutBooking } from '../services/bookingService.js';
 
-/** Recent bookings list with cancel support. */
+/** Recent bookings list with cancel and check-out support. */
 export function useBookings({ limit = 10 } = {}) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [cancellingId, setCancellingId] = useState(null);
-  const [cancelError, setCancelError] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -25,23 +25,23 @@ export function useBookings({ limit = 10 } = {}) {
     refresh();
   }, [refresh]);
 
-  const cancel = useCallback(
-    async (id) => {
-      setCancellingId(id);
-      setCancelError(null);
-      try {
-        const updated = await cancelBooking(id);
-        setBookings((list) => list.map((b) => (b.id === id ? updated : b)));
-        return updated;
-      } catch (err) {
-        setCancelError(err);
-        return null;
-      } finally {
-        setCancellingId(null);
-      }
-    },
-    []
-  );
+  const run = useCallback(async (id, action) => {
+    setBusyId(id);
+    setActionError(null);
+    try {
+      const updated = await action(id);
+      setBookings((list) => list.map((b) => (b.id === id ? updated : b)));
+      return updated;
+    } catch (err) {
+      setActionError(err);
+      return null;
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
 
-  return { bookings, loading, error, refresh, cancel, cancellingId, cancelError };
+  const cancel = useCallback((id) => run(id, cancelBooking), [run]);
+  const checkOut = useCallback((id) => run(id, (bookingId) => checkOutBooking(bookingId)), [run]);
+
+  return { bookings, loading, error, refresh, cancel, checkOut, busyId, actionError };
 }

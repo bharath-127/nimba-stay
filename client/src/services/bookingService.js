@@ -17,3 +17,9 @@ export async function cancelBooking(id) {
   const { data } = await api.patch(`/bookings/${id}/cancel`);
   return data;
 }
+
+/** PATCH /api/bookings/:id/check-out — early departure frees the remaining nights. */
+export async function checkOutBooking(id, { date } = {}) {
+  const { data } = await api.patch(`/bookings/${id}/check-out`, date ? { date } : {});
+  return data;
+}

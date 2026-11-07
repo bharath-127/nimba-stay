@@ -3,7 +3,7 @@ import Alert from '../ui/Alert.jsx';
 import Button from '../ui/Button.jsx';
 import EmptyState from '../ui/EmptyState.jsx';
 import { formatDisplayDate } from '../../utils/dates.js';
-import { pluralize } from '../../utils/format.js';
+import { formatINR, pluralize } from '../../utils/format.js';
 
 function SkeletonRow() {
   return (
@@ -18,8 +18,9 @@ function SkeletonRow() {
 }
 
 /**
- * Renders the availability search result in every state:
- * idle, loading, error, empty and populated.
+ * Renders the availability search result in every state: idle, loading,
+ * error, empty and populated. Rooms are grouped by category, most
+ * expensive first, exactly as the API returns them.
  */
 export default function RoomList({ status, data, error, selectedRoomId, onSelect, onRetry }) {
   if (status === 'idle') {
@@ -58,8 +59,9 @@ export default function RoomList({ status, data, error, selectedRoomId, onSelect
     );
   }
 
-  const { rooms, nights, checkIn, checkOut, category } = data;
+  const { rooms, groups = [], nights, chargedNights, minChargedNights, checkIn, checkOut, category } = data;
   const summary = `${formatDisplayDate(checkIn)} → ${formatDisplayDate(checkOut)} · ${pluralize(nights, 'night')}${category ? ` · ${category}` : ''}`;
+  const minimumApplied = chargedNights > nights;
 
   if (rooms.length === 0) {
     return (
@@ -71,17 +73,36 @@ export default function RoomList({ status, data, error, selectedRoomId, onSelect
   }
 
   return (
-    <div className="space-y-3" aria-live="polite">
-      <p className="text-sm text-slate-600">
+    <div className="space-y-5" aria-live="polite">
+      <div className="text-sm text-slate-600">
         <span className="font-semibold text-slate-900">{pluralize(rooms.length, 'room')}</span> available · {summary}
-      </p>
-      <ul className="space-y-3">
-        {rooms.map((room) => (
-          <li key={room.id}>
-            <RoomCard room={room} selected={room.id === selectedRoomId} onSelect={onSelect} />
-          </li>
-        ))}
-      </ul>
+        {minimumApplied && (
+          <p className="mt-1 text-xs text-amber-700">
+            Stays shorter than {minChargedNights} nights are charged for {minChargedNights} nights.
+          </p>
+        )}
+      </div>
+
+      {groups.map((group) => (
+        <section key={group.category} aria-labelledby={`group-${group.category}`} className="space-y-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-sand-200 pb-1.5">
+            <h3 id={`group-${group.category}`} className="text-sm font-semibold text-slate-900">
+              {group.category}
+              <span className="ml-2 font-normal text-slate-500">{pluralize(group.count, 'room')}</span>
+            </h3>
+            <p className="text-xs text-slate-500">
+              {formatINR(group.pricePerNight)} per night · <span className="font-medium text-slate-700">{formatINR(group.totalPrice)}</span> for the stay
+            </p>
+          </div>
+          <ul className="space-y-3">
+            {group.rooms.map((room) => (
+              <li key={room.id}>
+                <RoomCard room={room} selected={room.id === selectedRoomId} onSelect={onSelect} showCategory={false} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   );
 }

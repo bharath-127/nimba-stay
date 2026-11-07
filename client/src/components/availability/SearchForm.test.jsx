@@ -2,7 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import SearchForm from './SearchForm.jsx';
 
-const categories = ['Standard', 'Deluxe', 'Premium', 'Suite'];
+const categories = [
+  { name: 'Standard', pricePerNight: 3500 },
+  { name: 'Deluxe', pricePerNight: 5500 },
+  { name: 'Premium', pricePerNight: 8500 },
+  { name: 'Suite', pricePerNight: 12000 },
+];
 const initial = { checkIn: '2026-11-20', checkOut: '2026-11-22', category: '' };
 
 function setup(overrides = {}) {
@@ -14,15 +19,15 @@ function setup(overrides = {}) {
 }
 
 describe('SearchForm', () => {
-  it('renders dates, categories from props and a search button', () => {
+  it('renders dates, categories with their rates, and a search button', () => {
     setup();
     expect(screen.getByLabelText(/check-in/i)).toHaveValue('2026-11-20');
     expect(screen.getByLabelText(/check-out/i)).toHaveValue('2026-11-22');
-    expect(screen.getByRole('option', { name: 'Deluxe' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Deluxe · ₹5,500\/night/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /search availability/i })).toBeEnabled();
   });
 
-  it('submits the chosen dates and category', () => {
+  it('submits the chosen dates and category name', () => {
     const { onSearch } = setup();
     fireEvent.change(screen.getByLabelText(/room category/i), { target: { value: 'Suite' } });
     fireEvent.click(screen.getByRole('button', { name: /search availability/i }));

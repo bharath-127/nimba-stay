@@ -4,11 +4,12 @@ import Select from '../ui/Select.jsx';
 import Button from '../ui/Button.jsx';
 import { addDays, countNights } from '../../utils/dates.js';
 import { validateSearch, hasErrors } from '../../utils/validation.js';
-import { pluralize } from '../../utils/format.js';
+import { formatINR, pluralize } from '../../utils/format.js';
 
 /**
  * Check-in / check-out / category form. Validates locally for instant
  * feedback, then hands the params to the parent, which calls the API.
+ * `categories` are room types from the API: `{ name, pricePerNight }`.
  */
 export default function SearchForm({ initialValues, categories, categoriesLoading, loading, onSearch }) {
   const [values, setValues] = useState(initialValues);
@@ -37,15 +38,7 @@ export default function SearchForm({ initialValues, categories, categoriesLoadin
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-4" aria-label="Search availability">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Input
-          id="checkIn"
-          label="Check-in"
-          type="date"
-          value={values.checkIn}
-          onChange={update('checkIn')}
-          error={errors.checkIn}
-          required
-        />
+        <Input id="checkIn" label="Check-in" type="date" value={values.checkIn} onChange={update('checkIn')} error={errors.checkIn} required />
         <Input
           id="checkOut"
           label="Check-out"
@@ -59,17 +52,12 @@ export default function SearchForm({ initialValues, categories, categoriesLoadin
         />
       </div>
 
-      <Select
-        id="category"
-        label="Room category"
-        value={values.category}
-        onChange={update('category')}
-        disabled={categoriesLoading}
-      >
+      <Select id="category" label="Room category" value={values.category} onChange={update('category')} disabled={categoriesLoading}>
         <option value="">All categories</option>
         {categories.map((c) => (
-          <option key={c} value={c}>
-            {c}
+          <option key={c.name} value={c.name}>
+            {c.name}
+            {typeof c.pricePerNight === 'number' ? ` · ${formatINR(c.pricePerNight)}/night` : ''}
           </option>
         ))}
       </Select>

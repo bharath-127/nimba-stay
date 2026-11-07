@@ -2,16 +2,22 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import RoomCard from './RoomCard.jsx';
 
-const room = { id: 'r1', roomNumber: 'DLX-201', category: 'Deluxe', pricePerNight: 5500, nights: 3, totalPrice: 16500, status: 'available' };
+const room = { id: 'r1', roomNumber: 'DLX-201', category: 'Deluxe', bedCount: 2, pricePerNight: 5500, nights: 3, chargedNights: 3, totalPrice: 16500, status: 'available' };
 
 describe('RoomCard', () => {
-  it('shows room number, category, rate, nights, total and availability', () => {
+  it('shows room number, category, rate, nights, beds, total and availability', () => {
     render(<RoomCard room={room} onSelect={() => {}} />);
     expect(screen.getByRole('heading', { name: /room DLX-201/i })).toBeInTheDocument();
     expect(screen.getByText('Deluxe')).toBeInTheDocument();
-    expect(screen.getByText(/5,500 per night · 3 nights/)).toBeInTheDocument();
+    expect(screen.getByText(/5,500 per night · 3 nights · 2 beds/)).toBeInTheDocument();
     expect(screen.getByText(/16,500/)).toBeInTheDocument();
     expect(screen.getByText('Available')).toBeInTheDocument();
+    expect(screen.queryByText(/minimum/i)).not.toBeInTheDocument();
+  });
+
+  it('explains when the minimum charge applies', () => {
+    render(<RoomCard room={{ ...room, nights: 1, chargedNights: 3 }} onSelect={() => {}} />);
+    expect(screen.getByText(/charged for the 3-night minimum/i)).toBeInTheDocument();
   });
 
   it('calls onSelect with the room when Book now is clicked', () => {

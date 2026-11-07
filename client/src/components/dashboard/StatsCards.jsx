@@ -1,5 +1,6 @@
 import Alert from '../ui/Alert.jsx';
 import Button from '../ui/Button.jsx';
+import { formatDisplayDate } from '../../utils/dates.js';
 import { pluralize } from '../../utils/format.js';
 
 const icons = {
@@ -16,22 +17,36 @@ const tones = {
   sky: 'bg-sky-50 text-sky-700',
 };
 
-function buildItems(s) {
+/** "Tonight" or "Sat, 21 Nov → Sun, 22 Nov · 1 night" */
+export function describeRange(stats, range) {
+  if (!range) return 'Tonight';
+  return `${formatDisplayDate(stats.checkIn)} → ${formatDisplayDate(stats.checkOut)} · ${pluralize(stats.nights, 'night')}`;
+}
+
+function buildItems(s, range) {
+  const when = range ? 'for these dates' : 'tonight';
   return [
-    { key: 'total', label: 'Total rooms', value: s.totalRooms, hint: `${s.activeRooms} in service`, icon: 'rooms', tone: 'brand' },
+    {
+      key: 'total',
+      label: 'Total rooms',
+      value: s.totalRooms,
+      hint: s.inactiveRooms > 0 ? `${s.activeRooms} in service · ${s.inactiveRooms} inactive` : `${s.activeRooms} in service`,
+      icon: 'rooms',
+      tone: 'brand',
+    },
     {
       key: 'available',
-      label: 'Available tonight',
-      value: s.availableTonight,
-      hint: `${s.occupiedTonight} occupied tonight`,
+      label: range ? 'Available for these dates' : 'Available tonight',
+      value: s.availableRooms,
+      hint: `${pluralize(s.occupiedRooms, 'room')} occupied ${when}`,
       icon: 'available',
       tone: 'green',
     },
     {
       key: 'maintenance',
-      label: 'Under maintenance',
+      label: 'Out of service',
       value: s.maintenanceRooms,
-      hint: s.maintenanceRooms > 0 ? 'Not bookable' : 'All rooms in service',
+      hint: s.maintenanceRooms > 0 ? `Blocked ${when}` : `No rooms blocked ${when}`,
       icon: 'maintenance',
       tone: 'amber',
     },
@@ -39,7 +54,7 @@ function buildItems(s) {
       key: 'confirmed',
       label: 'Confirmed bookings',
       value: s.confirmedBookings,
-      hint: `${pluralize(s.currentOrUpcomingBookings, 'current or upcoming stay', 'current or upcoming stays')}`,
+      hint: `${pluralize(s.currentOrUpcomingBookings, 'current or upcoming stay', 'current or upcoming stays')} · ${s.inHouseTonight} in house tonight`,
       icon: 'bookings',
       tone: 'sky',
     },
@@ -57,10 +72,11 @@ function StatSkeleton() {
 }
 
 /**
- * Four compact property-summary cards. Every number comes from
- * GET /api/stats; nothing is computed or hardcoded on the client.
+ * Four compact property-summary cards for the searched dates (or tonight
+ * before a search). Every number comes from GET /api/stats; nothing is
+ * computed or hardcoded on the client.
  */
-export default function StatsCards({ stats, loading, error, onRetry }) {
+export default function StatsCards({ stats, loading, error, range, onRetry }) {
   if (!stats && loading) {
     return (
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy="true" aria-label="Loading property summary">
@@ -92,8 +108,11 @@ export default function StatsCards({ stats, loading, error, onRetry }) {
 
   return (
     <section aria-label="Property summary">
-      <dl className={`grid grid-cols-2 gap-3 transition-opacity lg:grid-cols-4 ${loading ? 'opacity-70' : ''}`}>
-        {buildItems(stats).map((item) => (
+      <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">
+        Summary · <span className="normal-case tracking-normal text-slate-700" data-testid="stats-range">{describeRange(stats, range)}</span>
+      </p>
+      <dl className={`grid grid-cols-2 gap-3 transition-opacity lg:grid-cols-4 ${loading ? 'opacity-70' : ''}`} aria-busy={loading || undefined}>
+        {buildItems(stats, range).map((item) => (
           <div key={item.key} className="rounded-xl border border-sand-200 bg-white p-4 shadow-sm">
             <dt className="flex items-center justify-between gap-2 text-xs font-medium text-slate-500 sm:text-sm">
               <span>{item.label}</span>

@@ -10,7 +10,10 @@ const categoryTone = {
 };
 
 /** One available room with the server-computed price for the stay. */
-export default function RoomCard({ room, selected = false, onSelect }) {
+export default function RoomCard({ room, selected = false, onSelect, showCategory = true }) {
+  const charged = room.chargedNights ?? room.nights;
+  const minimumApplied = charged > room.nights;
+
   return (
     <article
       aria-selected={selected}
@@ -21,14 +24,16 @@ export default function RoomCard({ room, selected = false, onSelect }) {
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-base font-semibold text-slate-900">Room {room.roomNumber}</h3>
-          <span className={`rounded px-2 py-0.5 text-xs font-medium ${categoryTone[room.category] ?? categoryTone.Standard}`}>
-            {room.category}
-          </span>
+          {showCategory && (
+            <span className={`rounded px-2 py-0.5 text-xs font-medium ${categoryTone[room.category] ?? categoryTone.Standard}`}>{room.category}</span>
+          )}
           <Badge tone="success">Available</Badge>
         </div>
         <p className="mt-1 text-sm text-slate-500">
           {formatINR(room.pricePerNight)} per night · {pluralize(room.nights, 'night')}
+          {room.bedCount ? ` · ${pluralize(room.bedCount, 'bed')}` : ''}
         </p>
+        {minimumApplied && <p className="mt-0.5 text-xs text-amber-700">Charged for the {charged}-night minimum</p>}
       </div>
 
       <div className="flex items-center justify-between gap-4 sm:justify-end">

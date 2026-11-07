@@ -8,18 +8,21 @@ import SearchForm from '../components/availability/SearchForm.jsx';
 import RoomList from '../components/availability/RoomList.jsx';
 import BookingPanel from '../components/booking/BookingPanel.jsx';
 import RecentBookings from '../components/booking/RecentBookings.jsx';
+import RoomBlocksCard from '../components/rooms/RoomBlocksCard.jsx';
 import { useCategories } from '../hooks/useCategories.js';
 import { useAvailability } from '../hooks/useAvailability.js';
 import { useCreateBooking } from '../hooks/useCreateBooking.js';
 import { useBookings } from '../hooks/useBookings.js';
 import { useStats } from '../hooks/useStats.js';
+import { useBlocks } from '../hooks/useBlocks.js';
 import { todayIso, addDays } from '../utils/dates.js';
 
 /**
  * The single front-desk screen. Owns the flow:
  *   search → Book now → side panel (details → review → confirmed)
- * After any booking or cancellation the availability list, the recent
- * bookings and the summary cards are re-fetched, so every number on screen
+ * The summary cards describe the searched dates (tonight before a search).
+ * After any booking, cancellation, check-out or block change everything
+ * that depends on room occupancy is re-fetched, so every number on screen
  * comes from the API.
  */
 export default function DashboardPage() {
@@ -28,18 +31,26 @@ export default function DashboardPage() {
   const createBooking = useCreateBooking();
   const recent = useBookings({ limit: 10 });
   const stats = useStats();
+  const blocks = useBlocks();
 
   const [selectedRoom, setSelectedRoom] = useState(null);
 
   const initialSearch = { checkIn: todayIso(), checkOut: addDays(todayIso(), 1), category: '' };
+
+  /** Everything that reflects room occupancy. */
+  const syncOccupancy = useCallback(() => {
+    stats.refresh();
+    if (availability.status === 'success') availability.refresh();
+  }, [stats.refresh, availability.refresh, availability.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = useCallback(
     (params) => {
       setSelectedRoom(null);
       createBooking.reset();
       availability.search(params);
+      stats.load(params); // the cards follow the searched dates
     },
-    [availability.search, createBooking.reset] // eslint-disable-line react-hooks/exhaustive-deps
+    [availability.search, createBooking.reset, stats.load] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const handleSelectRoom = (room) => {
@@ -57,7 +68,6 @@ export default function DashboardPage() {
   const handleConfirmBooking = async (payload) => {
     const result = await createBooking.submit(payload);
     if (result.ok) {
-      // The room is now taken for these nights: re-sync everything that shows it.
       availability.refresh();
       recent.refresh();
       stats.refresh();
@@ -70,12 +80,23 @@ export default function DashboardPage() {
   };
 
   const handleCancelBooking = async (id) => {
-    const updated = await recent.cancel(id);
-    if (updated) {
-      // The server released the booking's nights: refresh what depends on them.
-      stats.refresh();
-      if (availability.status === 'success') availability.refresh();
-    }
+    if (await recent.cancel(id)) syncOccupancy();
+  };
+
+  const handleCheckOutBooking = async (id) => {
+    if (await recent.checkOut(id)) syncOccupancy();
+  };
+
+  const handleCreateBlock = async (roomId, body) => {
+    const result = await blocks.create(roomId, body);
+    if (result.ok) syncOccupancy();
+    return result;
+  };
+
+  const handleLiftBlock = async (id) => {
+    const result = await blocks.lift(id);
+    if (result.ok) syncOccupancy();
+    return result;
   };
 
   const { checkIn, checkOut } = availability.params ?? {};
@@ -93,7 +114,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="mb-6">
-          <StatsCards stats={stats.data} loading={stats.loading} error={stats.error} onRetry={stats.refresh} />
+          <StatsCards stats={stats.data} loading={stats.loading} error={stats.error} range={stats.range} onRetry={stats.refresh} />
         </div>
 
         {categoriesError && (
@@ -103,7 +124,6 @@ export default function DashboardPage() {
         )}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {/* Search */}
           <div className="lg:col-span-1">
             <Card id="availability" eyebrow="Step 1" title="Search availability" subtitle="Dates and category" className="lg:sticky lg:top-6">
               <SearchForm
@@ -116,12 +136,11 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          {/* Results */}
           <div className="lg:col-span-2">
             <Card
               eyebrow="Step 2"
               title="Available rooms"
-              subtitle="Only rooms free for every night of the stay"
+              subtitle="Only rooms free for every night of the stay, by category"
               actions={
                 availability.status === 'success' && (
                   <Button variant="ghost" size="sm" onClick={availability.refresh}>
@@ -142,12 +161,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Recent bookings */}
         <div className="mt-6 sm:mt-8">
           <Card
             id="bookings"
             title="Recent bookings"
-            subtitle="Latest 10 · cancelling a booking frees its nights immediately"
+            subtitle="Latest 10 · cancelling or checking out a guest frees the room's remaining nights immediately"
             actions={
               <Button variant="ghost" size="sm" onClick={recent.refresh} loading={recent.loading && recent.bookings.length > 0}>
                 Refresh
@@ -158,10 +176,27 @@ export default function DashboardPage() {
               bookings={recent.bookings}
               loading={recent.loading}
               error={recent.error}
-              cancellingId={recent.cancellingId}
-              cancelError={recent.cancelError}
+              busyId={recent.busyId}
+              actionError={recent.actionError}
               onCancel={handleCancelBooking}
+              onCheckOut={handleCheckOutBooking}
               onRefresh={recent.refresh}
+            />
+          </Card>
+        </div>
+
+        <div className="mt-6 sm:mt-8">
+          <Card id="blocks" title="Maintenance blocks" subtitle="Rooms out of service for a period are never offered for those dates">
+            <RoomBlocksCard
+              blocks={blocks.blocks}
+              rooms={blocks.rooms}
+              loading={blocks.loading}
+              error={blocks.error}
+              busyId={blocks.busyId}
+              creating={blocks.creating}
+              onCreate={handleCreateBlock}
+              onLift={handleLiftBlock}
+              onRefresh={blocks.refresh}
             />
           </Card>
         </div>

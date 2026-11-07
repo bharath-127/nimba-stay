@@ -1,5 +1,5 @@
 # Nimba Stay
-
+123
 Front-desk room availability and booking system for **Nimba Nature Cure & Holistic Centre**.
 Staff pick dates and a category, see which rooms are free for the *whole* stay with the total price, enter the guest's details and book. **A room can never be booked twice for the same night** — not even under concurrent requests.
 

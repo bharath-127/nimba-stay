@@ -9,7 +9,13 @@ useTestDatabase();
  * the live Express app and MongoDB; the outcome is decided by the unique
  * { roomId, date } index on RoomNight, not by request ordering in JavaScript.
  */
-describe(`concurrent bookings (${dbMode()} mode)`, () => {
+describe('concurrent bookings', () => {
+  it('reports which write path is under test', () => {
+    // Evaluated after beforeAll has connected, unlike a describe() title.
+    console.log(`[concurrency] write path under test: ${dbMode()}`);
+    expect(['transactions', 'fallback']).toContain(dbMode());
+  });
+
   it('two simultaneous identical requests: exactly one 201 and one 409', async () => {
     const roomId = await roomIdByNumber('STE-401');
     const body = validBooking({ roomId });

@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -27,12 +28,22 @@ export function createApp() {
   app.use(express.json({ limit: '10kb' }));
   if (!env.isTest) app.use(morgan(env.isProduction ? 'combined' : 'dev'));
 
+  // Health reflects the database too: an API that is up but cannot reach
+  // MongoDB cannot serve availability or bookings, so it reports 503.
   app.get('/api/health', (_req, res) => {
-    res.json({
+    const databaseConnected = mongoose.connection.readyState === 1;
+    if (!databaseConnected) {
+      return res.status(503).json({
+        success: false,
+        error: { code: 'DATABASE_UNAVAILABLE', message: 'The API is running but cannot reach the database' },
+      });
+    }
+    return res.json({
       success: true,
       data: {
         status: 'ok',
         service: 'nimba-stay-api',
+        database: 'connected',
         transactions: supportsTransactions() ? 'enabled' : 'fallback',
         timestamp: new Date().toISOString(),
       },

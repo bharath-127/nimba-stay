@@ -67,6 +67,10 @@ export const createBookingSchema = z
 
 export const bookingIdParamsSchema = z.object({ id: objectIdSchema });
 
+export const statsQuerySchema = z.object({
+  date: isoDate('date').optional(),
+});
+
 export const listBookingsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });

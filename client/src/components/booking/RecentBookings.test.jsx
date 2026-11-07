@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import RecentBookings from './RecentBookings.jsx';
+import RecentBookings, { initials } from './RecentBookings.jsx';
 import { stayPhase, bookingPhase, canCancel, canCheckOut } from '../../utils/bookingStatus.js';
 
-const base = { room: { id: 'r', roomNumber: 'DLX-201', category: 'Deluxe' }, nights: 2, chargedNights: 3, pricePerNight: 5500, totalPrice: 16500, createdAt: '2026-11-07T09:00:00.000Z', checkedOutOn: null };
+const base = { room: { id: 'r', roomNumber: 'DLX-201', category: 'Deluxe' }, nights: 2, chargedNights: 2, pricePerNight: 5500, totalPrice: 11000, createdAt: '2026-11-07T09:00:00.000Z', checkedOutOn: null };
 const bookings = [
   { ...base, id: 'b1', guestName: 'Upcoming Guest', phone: '9000000001', checkIn: '2026-11-25', checkOut: '2026-11-27', status: 'confirmed' },
   { ...base, id: 'b2', guestName: 'In House Guest', phone: '9000000002', checkIn: '2026-11-19', checkOut: '2026-11-21', status: 'confirmed' },
@@ -47,6 +47,15 @@ describe('booking phase helpers', () => {
   });
 });
 
+describe('initials', () => {
+  it('builds avatar initials from the guest name', () => {
+    expect(initials('Asha Mehta')).toBe('AM');
+    expect(initials('Ravi Kumar Patel')).toBe('RP');
+    expect(initials('Priya')).toBe('PR');
+    expect(initials('')).toBe('·');
+  });
+});
+
 describe('RecentBookings', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -65,9 +74,13 @@ describe('RecentBookings', () => {
     expect(t.getByText(/left early on Thu, 19 Nov 2026/i)).toBeInTheDocument();
   });
 
-  it('notes when the minimum charge applied', () => {
+  it('shows the room with its category, the stay range and the total', () => {
     setup();
-    expect(table().getAllByText(/charged for 3/).length).toBeGreaterThan(0);
+    const t = table();
+    expect(t.getAllByText('DLX-201')).toHaveLength(4);
+    expect(t.getAllByText('Deluxe')).toHaveLength(4);
+    expect(t.getAllByText(/Fri, 20 Nov|Mon, 23 Nov|2 nights/).length).toBeGreaterThanOrEqual(4);
+    expect(t.getAllByText('₹11,000')).toHaveLength(4);
   });
 
   it('offers check-out only for the guest in house, and cancel for confirmed stays', () => {

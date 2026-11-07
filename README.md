@@ -63,7 +63,7 @@ And one requirement that is easy to get subtly wrong: two simultaneous requests 
 - Property summary cards — total rooms, available, out of service, confirmed bookings — all from `GET /api/stats`. **They describe the dates being searched** (tonight before a search) and refresh after every booking, cancellation, check-out or block change
 - Check-in / check-out date pickers with instant validation (check-out must be after check-in, max 90 nights)
 - Category filter populated from the API's room types, with their rates (nothing hardcoded in the UI)
-- Available rooms **grouped by category, most expensive first**, each with nightly rate, beds, nights, total stay price and availability badge; a note explains when the 3-night minimum charge applies
+- Available rooms **grouped by category, most expensive first**, each with nightly rate, beds, nights, total stay price and availability badge
 - **Book now** opens an accessible side panel (full-screen on phones): guest details → **review** of guest, room, dates and total → confirm. Nothing is sent until the review is confirmed; a 409 replaces *Confirm* with *Choose another room*
 - Booking confirmation with reference, guest, room, dates, nights and total
 - Recent bookings with status badges (icon + colour + text: *Confirmed* / *Checked out* / *Cancelled*) and a stay phase (*Upcoming* / *In-house* / *Checked out*), a table on desktop and cards on phones, a two-step inline **Check out** for guests in house (frees the remaining nights) and **Cancel** for confirmed stays
@@ -73,7 +73,7 @@ And one requirement that is easy to get subtly wrong: two simultaneous requests 
 - Responsive layout, accessible labelled inputs, `aria-live` regions, keyboard-navigable
 
 **API**
-- `GET /api/availability` — rooms free for every night of the stay, grouped by category, with the stay price (3-night minimum charge)
+- `GET /api/availability` — rooms free for every night of the stay, grouped by category, with the stay price
 - `POST /api/bookings` — validated, price computed server-side from the room type's rate, `400` / `404` / `409`
 - `PATCH /api/bookings/:id/cancel` — releases every night · `PATCH /api/bookings/:id/check-out` — early departure releases the remaining nights
 - `GET /api/stats?checkIn=&checkOut=` — summary for a stay range (or tonight)
@@ -121,7 +121,7 @@ nimba/
 │   ├── services/                   availabilityService, bookingService, roomTypeService, roomBlockService, statsService
 │   ├── validators/schemas.js       Zod schemas for query / body / params
 │   ├── middleware/                 validate, errorHandler, notFound
-│   ├── utils/                      dates, pricing (minimum nights), constants, AppError, mongoErrors
+│   ├── utils/                      dates, pricing, constants, AppError, mongoErrors
 │   ├── tests/
 │   │   ├── unit/                   dates.test.js, pricing.test.js
 │   │   ├── integration/            availability, bookings, cancel, checkout, blocks, stats, health, concurrency
@@ -155,12 +155,12 @@ Browser ──Axios──▶ Express
 
 A booking night is a calendar day, not an instant. Storing dates as ISO strings removes the entire class of timezone off-by-one bugs (`new Date('2026-11-20')` is UTC midnight, which is the 19th in some timezones). Because ISO date strings sort lexicographically in chronological order, the overlap predicate works directly on strings in MongoDB (`$lt` / `$gt`).
 
-### Room types, blocks, minimum charge, early check-out
+### Room types, blocks, pricing, early check-out
 
 - **`RoomType`** is the category (`Deluxe`, `Suite`, …) and **owns the nightly rate**. Changing a tariff is one update; every booking snapshots the rate it was made at. An inactive type is never offered.
 - **`Room`** has a number, a category, a bed count and `isActive`. Inactive rooms are never offered.
 - **`RoomBlock`** is how maintenance works: a half-open period `[startDate, endDate)` with a reason; `endDate: null` means *until someone lifts it*. A block is refused while a confirmed guest is booked in the period (the guests are returned in the error), so blocking can never strand anyone.
-- **Minimum charge:** every stay is billed for at least `MIN_CHARGED_NIGHTS = 3` nights (`utils/pricing.js`). A 1-night stay reserves 1 night but is charged for 3; the response carries both `nights` and `chargedNights` so the UI can say so.
+- **Pricing:** a stay is charged for its actual nights — `nights × pricePerNight`, 1 night = 1 night's rate (`utils/pricing.js`). Responses carry `chargedNights`, which equals `nights`; `MIN_CHARGED_NIGHTS` in `utils/constants.js` (currently `1`) is the single switch should a minimum-night policy ever be wanted.
 - **Early check-out:** `PATCH /bookings/:id/check-out` sets `status: checked_out` and `checkedOutOn`, and deletes the `RoomNight` rows from that day on, so the room can be re-let the same day. Nights already stayed are kept.
 
 ### Availability (`availabilityService.findAvailableRooms`)
@@ -232,7 +232,7 @@ Indexes: `{ roomId, startDate, endDate }`. Overlap with a stay: `startDate < che
 | `phone` | String | exactly 10 digits |
 | `checkIn`, `checkOut` | String | `YYYY-MM-DD`; model also enforces `checkOut > checkIn` |
 | `nights` | Number | derived, ≥ 1 |
-| `chargedNights` | Number | `max(nights, 3)` |
+| `chargedNights` | Number | `= nights` (would exceed it only if `MIN_CHARGED_NIGHTS` were raised above 1) |
 | `pricePerNight` | Number | snapshot of the room type's rate at booking time |
 | `totalPrice` | Number | `chargedNights × pricePerNight`, computed on the server |
 | `status` | String | enum `confirmed` · `checked_out` · `cancelled` (default `confirmed`) |
@@ -298,7 +298,7 @@ GET /api/availability?checkIn=2026-11-20&checkOut=2026-11-23&category=Deluxe
 }
 ```
 
-Groups are ordered most expensive first. A 1-night search returns `nights: 1, chargedNights: 3` and prices accordingly.
+Groups are ordered most expensive first. A 1-night search returns `nights: 1, chargedNights: 1` and one night's rate as the total.
 
 `400 VALIDATION_ERROR` when a date is missing or invalid, check-out is not after check-in, the stay exceeds 90 nights, or the category is unknown (the message lists the valid categories).
 
@@ -448,9 +448,9 @@ npm run test:client          # Vitest + Testing Library (jsdom)
 | File | Covers |
 |---|---|
 | `unit/dates.test.js` | ISO date validation (incl. 30 Feb, leap years), day arithmetic across month/year, night counting, **half-open night expansion** (check-out day excluded), the overlap predicate for identical / partial / inside / containing / adjacent ranges, and a 2 000-case property check that *overlap predicate ⇔ night-set intersection* |
-| `unit/pricing.test.js` | **3-night minimum** (1 and 2 nights charged as 3; 4+ as actual), `chargedNights × rate`, rounding, invalid inputs |
-| `integration/availability.test.js` | valid / same-day / inverted / invalid / missing dates → 400; unknown category → 400 listing the valid ones; > 90 nights → 400; the blocked seed room excluded; **grouping by category, most expensive first**; category filter; price from the type's rate; minimum charge; a changed tariff reflected at once; **Rule 3** for a block overlapping any night, a block outside the stay (not hidden), an open-ended block, an inactive room, an inactive type; room held for identical / partial / inside / containing ranges; later-night clash still blocks; **check-out day free (Rule 1)**; **cancelled booking blocks nothing (Rule 2)**; early check-out frees only the remaining nights; cards agree with the search |
-| `integration/bookings.test.js` | 201 shape incl. `chargedNights`; one `RoomNight` per night; 1-night stay charged as 3 but reserving 1; **client-supplied price ignored (Rule 9)**; rate snapshot survives a tariff change; phone 9 / 11 digits, letters, spaces, country code, empty, missing → 400 (Rule 5); same-day, inverted, invalid, missing dates → 400 (Rule 4); short/blank name → 400; malformed id → 400; unknown room → 404; malformed JSON → 400; **Rule 3** blocked (seeded, dated with end date named, adjacent blocks allowed), inactive room, inactive type → 409 with no data left behind; conflicts for same / partial / inside / containing → 409 (Rule 6) with no partial data; Rule 1 both directions → 201; cancelled then re-book → 201; next guest arrives on the early check-out day → 201, the night before → 409; different room same dates → 201; list ordering and limit validation |
+| `unit/pricing.test.js` | actual-night charging (1 = 1, no minimum policy on; an explicit minimum still works), `chargedNights × rate`, rounding, invalid inputs |
+| `integration/availability.test.js` | valid / same-day / inverted / invalid / missing dates → 400; unknown category → 400 listing the valid ones; > 90 nights → 400; the blocked seed room excluded; **grouping by category, most expensive first**; category filter; price from the type's rate; a 1-night stay priced at one night; a changed tariff reflected at once; **Rule 3** for a block overlapping any night, a block outside the stay (not hidden), an open-ended block, an inactive room, an inactive type; room held for identical / partial / inside / containing ranges; later-night clash still blocks; **check-out day free (Rule 1)**; **cancelled booking blocks nothing (Rule 2)**; early check-out frees only the remaining nights; cards agree with the search |
+| `integration/bookings.test.js` | 201 shape incl. `chargedNights`; one `RoomNight` per night; 1-night stay charged for 1 night and reserving 1; **client-supplied price ignored (Rule 9)**; rate snapshot survives a tariff change; phone 9 / 11 digits, letters, spaces, country code, empty, missing → 400 (Rule 5); same-day, inverted, invalid, missing dates → 400 (Rule 4); short/blank name → 400; malformed id → 400; unknown room → 404; malformed JSON → 400; **Rule 3** blocked (seeded, dated with end date named, adjacent blocks allowed), inactive room, inactive type → 409 with no data left behind; conflicts for same / partial / inside / containing → 409 (Rule 6) with no partial data; Rule 1 both directions → 201; cancelled then re-book → 201; next guest arrives on the early check-out day → 201, the night before → 409; different room same dates → 201; list ordering and limit validation |
 | `integration/cancel.test.js` | nights released, room bookable again, idempotent, 409 after check-out, 404, 400 |
 | `integration/checkout.test.js` | early departure releases nights from that day and keeps the stayed night; room re-lettable from that day but not before; on/after planned check-out frees nothing; default date = today; 409 before check-in; 409 for cancelled; idempotent; id and date validation |
 | `integration/blocks.test.js` | rooms and room types listing; seeded block listed with its room; ended blocks hidden unless asked; create a dated block → hidden from availability and 409 on booking; open-ended default; **refused with the guests listed** when someone is booked in the period; adjacent periods allowed; allowed after an early check-out; date/id validation; lifting a future block removes it, lifting one in effect ends it today; 404 / 400 |
@@ -467,7 +467,7 @@ The suite was executed against **both** deployment types:
 
 ### Client — 66 tests, 9 files (all passing)
 
-`validation.test.js` (search + guest rules, phone variants) · `SearchForm.test.jsx` (render with room-type rates, submit, local validation, loading) · `RoomCard.test.jsx` (fields incl. beds, minimum-charge note, select, selected state) · `BookingForm.test.jsx` (summary, local validation, trimmed payload, server field errors, prefill) · `BookingPanel.test.jsx` (accessible dialog + initial focus, review shows guest/room/dates/total before sending, invalid phone blocked, edit keeps values, exact confirm payload, 409 → *Choose another room*, 400 → back to details with field error, network error retryable, no close/resubmit while in flight, Escape) · `StatsCards.test.jsx` (API figures rendered verbatim, **labels and range follow the searched dates / tonight**, skeleton, error + retry, stale data kept on refresh error) · `RecentBookings.test.jsx` (phase helpers, badges for confirmed / checked out / cancelled, early-departure note, **check-out only for in-house guests**, cancel only for confirmed stays, two-step confirms, mobile cards) · `RoomBlocksCard.test.jsx` (list, active-rooms-only picker, local validation, exact create payload, conflict details with the guests, two-step lift, empty state) · `Header.test.jsx` (online / database offline / API offline, click re-check and recovery, 15 s polling).
+`validation.test.js` (search + guest rules, phone variants) · `SearchForm.test.jsx` (render with room-type rates, submit, local validation, loading) · `RoomCard.test.jsx` (fields incl. beds, select, selected state) · `BookingForm.test.jsx` (summary, local validation, trimmed payload, server field errors, prefill) · `BookingPanel.test.jsx` (accessible dialog + initial focus, review shows guest/room/dates/total before sending, invalid phone blocked, edit keeps values, exact confirm payload, 409 → *Choose another room*, 400 → back to details with field error, network error retryable, no close/resubmit while in flight, Escape) · `StatsCards.test.jsx` (API figures rendered verbatim, **labels and range follow the searched dates / tonight**, skeleton, error + retry, stale data kept on refresh error) · `RecentBookings.test.jsx` (phase helpers, badges for confirmed / checked out / cancelled, early-departure note, **check-out only for in-house guests**, cancel only for confirmed stays, two-step confirms, mobile cards) · `RoomBlocksCard.test.jsx` (list, active-rooms-only picker, local validation, exact create payload, conflict details with the guests, two-step lift, empty state) · `Header.test.jsx` (online / database offline / API offline, click re-check and recovery, 15 s polling).
 
 ### Manual end-to-end (real browser against the running stack)
 
@@ -483,7 +483,7 @@ Verified in the browser with the API on a standalone MongoDB: categories loaded 
 - [x] React dashboard: search, results, selection, guest form, confirmation, recent bookings, cancel; loading / empty / error / conflict / network states; double-submit guard; auto-refresh; responsive; accessible
 - [x] Central error middleware, consistent envelope, CORS allow-list, Helmet, env config, no secrets in git
 - [x] Summary cards from live data, booking side panel with review step, status indicators, responsive bookings list, live API/database health indicator
-- [x] Room types owning the rate, dated maintenance blocks (create / list / lift, refused while guests are booked), inactive rooms and types, 3-night minimum charge, early check-out that frees the remaining nights, availability grouped by category, summary cards that follow the searched dates
+- [x] Room types owning the rate, dated maintenance blocks (create / list / lift, refused while guests are booked), inactive rooms and types, early check-out that frees the remaining nights, availability grouped by category, summary cards that follow the searched dates
 - [x] 201 automated tests (server 135, client 66), Postman collection
 - [x] Git history with incremental commits
 
@@ -539,6 +539,6 @@ Nimba's real system (Postgres + Prisma, tRPC, Next.js) models the same problem. 
 | Free rooms grouped by type, most expensive first | Same (`groups` in the availability response) |
 | Re-check the room inside the booking transaction → 409 | Stronger: every room-night is a row under a **unique index**, so the database itself refuses a second reservation — no check-then-insert window at all |
 | Beds allocated one by one (patient + attendant share a room) | **Not implemented.** The assignment's rule is *a room is never booked twice for the same night*; bed-level sharing would contradict it |
-| Minimum 3 charged nights | Same (`MIN_CHARGED_NIGHTS = 3`, `chargedNights` on every price) |
+| Minimum 3 charged nights | **Not applied:** stays are charged for actual nights, since the assignment defines the total as the price of the stay. `MIN_CHARGED_NIGHTS` (`utils/constants.js`) is the single switch if the policy is wanted; `chargedNights` is already in every price |
 | Separate full booking page | Replaced by the side panel — the brief asks for one screen |
 | Gap: `claimRoom()` takes no lock, so two staff can double-book | Closed here. Postgres would use `pg_advisory_xact_lock` per room or an exclusion constraint; MongoDB has neither, so the guarantee is a **unique `{ roomId, date }` index** — timing-independent, and proven by the concurrency tests in both transaction and fallback modes |

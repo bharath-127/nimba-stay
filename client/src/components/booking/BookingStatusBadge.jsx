@@ -1,47 +1,34 @@
+import Badge from '../ui/Badge.jsx';
+import Icon from '../ui/Icon.jsx';
 import { STAY_PHASE_LABEL } from '../../utils/bookingStatus.js';
 
 const STATUS = {
-  confirmed: {
-    label: 'Confirmed',
-    className: 'bg-brand-100 text-brand-800 ring-brand-200',
-    icon: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-  },
-  checked_out: {
-    label: 'Checked out',
-    className: 'bg-sky-100 text-sky-800 ring-sky-200',
-    icon: 'M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75',
-  },
-  cancelled: {
-    label: 'Cancelled',
-    className: 'bg-slate-100 text-slate-600 ring-slate-200',
-    icon: 'M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-  },
+  confirmed: { label: 'Confirmed', tone: 'success', icon: 'checkCircle' },
+  checked_out: { label: 'Checked out', tone: 'info', icon: 'logout' },
+  cancelled: { label: 'Cancelled', tone: 'neutral', icon: 'xCircle' },
 };
 
 const PHASE_DOT = {
   upcoming: 'bg-sky-500',
   'in-house': 'bg-brand-500',
-  'checked-out': 'bg-slate-400',
+  'checked-out': 'bg-ink-300',
 };
 
 /** Booking status pill: colour + icon + text, so it never relies on colour alone. */
 export default function BookingStatusBadge({ status }) {
-  const s = STATUS[status] ?? { label: status, className: 'bg-slate-100 text-slate-700 ring-slate-200', icon: STATUS.cancelled.icon };
+  const s = STATUS[status] ?? { label: status, tone: 'neutral', icon: 'info' };
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${s.className}`}>
-      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d={s.icon} />
-      </svg>
+    <Badge tone={s.tone} icon={<Icon name={s.icon} className="h-3.5 w-3.5" strokeWidth={2} />}>
       {s.label}
-    </span>
+    </Badge>
   );
 }
 
 /** Secondary indicator for confirmed stays: upcoming / in-house / checked out. */
 export function StayPhase({ phase }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-      <span className={`h-1.5 w-1.5 rounded-full ${PHASE_DOT[phase]}`} aria-hidden="true" />
+    <span className="inline-flex items-center gap-1.5 text-xs text-ink-500">
+      <span className={`h-1.5 w-1.5 rounded-full ${PHASE_DOT[phase] ?? PHASE_DOT['checked-out']}`} aria-hidden="true" />
       {STAY_PHASE_LABEL[phase]}
     </span>
   );

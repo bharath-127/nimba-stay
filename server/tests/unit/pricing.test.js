@@ -2,16 +2,21 @@ import { describe, it, expect } from 'vitest';
 import { chargedNightsFor, calculateTotalPrice, priceStay } from '../../utils/pricing.js';
 import { MIN_CHARGED_NIGHTS } from '../../utils/constants.js';
 
-describe('chargedNightsFor — minimum charged nights', () => {
-  it(`charges at least ${MIN_CHARGED_NIGHTS} nights`, () => {
-    expect(chargedNightsFor(1)).toBe(MIN_CHARGED_NIGHTS);
-    expect(chargedNightsFor(2)).toBe(MIN_CHARGED_NIGHTS);
-    expect(chargedNightsFor(3)).toBe(3);
+describe('chargedNightsFor — stays are charged for their actual nights', () => {
+  it('has no minimum-night policy switched on', () => {
+    expect(MIN_CHARGED_NIGHTS).toBe(1);
   });
 
-  it('charges the actual nights above the minimum', () => {
-    expect(chargedNightsFor(4)).toBe(4);
+  it('charges exactly the nights stayed: 1 night = 1 night', () => {
+    expect(chargedNightsFor(1)).toBe(1);
+    expect(chargedNightsFor(2)).toBe(2);
+    expect(chargedNightsFor(3)).toBe(3);
     expect(chargedNightsFor(30)).toBe(30);
+  });
+
+  it('can apply a minimum when one is passed explicitly', () => {
+    expect(chargedNightsFor(1, 3)).toBe(3);
+    expect(chargedNightsFor(5, 3)).toBe(5);
   });
 
   it('rejects zero, negative or fractional nights', () => {
@@ -23,6 +28,7 @@ describe('chargedNightsFor — minimum charged nights', () => {
 
 describe('calculateTotalPrice', () => {
   it('multiplies charged nights by the nightly rate', () => {
+    expect(calculateTotalPrice(1, 5500)).toBe(5500);
     expect(calculateTotalPrice(3, 5500)).toBe(16500);
     expect(calculateTotalPrice(7, 12000)).toBe(84000);
   });
@@ -39,8 +45,8 @@ describe('calculateTotalPrice', () => {
 });
 
 describe('priceStay', () => {
-  it('prices a short stay at the minimum', () => {
-    expect(priceStay(1, 5500)).toEqual({ nights: 1, chargedNights: 3, pricePerNight: 5500, totalPrice: 16500 });
+  it('prices a 1-night stay at one night', () => {
+    expect(priceStay(1, 5500)).toEqual({ nights: 1, chargedNights: 1, pricePerNight: 5500, totalPrice: 5500 });
   });
 
   it('prices a long stay at its real length', () => {

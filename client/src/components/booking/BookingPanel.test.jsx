@@ -51,7 +51,8 @@ describe('BookingPanel', () => {
     const summary = screen.getByText('Guest name').closest('dl');
     expect(within(summary).getByText('Asha Mehta')).toBeInTheDocument();
     expect(within(summary).getByText('9876543210')).toBeInTheDocument();
-    expect(within(summary).getByText('DLX-201 · Deluxe')).toBeInTheDocument();
+    expect(within(summary).getByText('DLX-201')).toBeInTheDocument();
+    expect(within(summary).getByText('Deluxe')).toBeInTheDocument();
     expect(within(summary).getByText('Fri, 20 Nov 2026')).toBeInTheDocument();
     expect(within(summary).getByText('Mon, 23 Nov 2026')).toBeInTheDocument();
     expect(within(summary).getByText('₹16,500')).toBeInTheDocument();

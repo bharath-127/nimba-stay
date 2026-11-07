@@ -12,12 +12,17 @@ describe('RoomCard', () => {
     expect(screen.getByText(/5,500 per night · 3 nights · 2 beds/)).toBeInTheDocument();
     expect(screen.getByText(/16,500/)).toBeInTheDocument();
     expect(screen.getByText('Available')).toBeInTheDocument();
-    expect(screen.queryByText(/minimum/i)).not.toBeInTheDocument();
   });
 
-  it('explains when the minimum charge applies', () => {
-    render(<RoomCard room={{ ...room, nights: 1, chargedNights: 3 }} onSelect={() => {}} />);
-    expect(screen.getByText(/charged for the 3-night minimum/i)).toBeInTheDocument();
+  it('never mentions a minimum charge', () => {
+    render(<RoomCard room={{ ...room, nights: 1, chargedNights: 1, totalPrice: 5500 }} onSelect={() => {}} />);
+    expect(screen.queryByText(/minimum/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/5,500 per night · 1 night · 2 beds/)).toBeInTheDocument();
+  });
+
+  it('hides the category badge when the list already groups by category', () => {
+    render(<RoomCard room={room} onSelect={() => {}} showCategory={false} />);
+    expect(screen.queryByText('Deluxe')).not.toBeInTheDocument();
   });
 
   it('calls onSelect with the room when Book now is clicked', () => {
@@ -29,6 +34,8 @@ describe('RoomCard', () => {
 
   it('reflects the selected state', () => {
     render(<RoomCard room={room} selected onSelect={() => {}} />);
-    expect(screen.getByRole('button', { name: /selected/i })).toHaveAttribute('aria-pressed', 'true');
+    const button = screen.getByRole('button', { name: /selected/i });
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('article')).toHaveAttribute('aria-selected', 'true');
   });
 });

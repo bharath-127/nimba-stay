@@ -39,11 +39,11 @@ describe('POST /api/bookings — success', () => {
     expect(nights.map((n) => n.date)).toEqual(['2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04']);
   });
 
-  it('charges a 1-night stay for the 3-night minimum but reserves only 1 night', async () => {
+  it('charges a 1-night stay for exactly 1 night and reserves 1 night', async () => {
     const roomId = await roomIdByNumber('STD-101');
     const res = await post(validBooking({ roomId, checkIn: '2026-12-01', checkOut: '2026-12-02' }));
     expect(res.status).toBe(201);
-    expect(res.body.data).toMatchObject({ nights: 1, chargedNights: 3, pricePerNight: 3500, totalPrice: 10500 });
+    expect(res.body.data).toMatchObject({ nights: 1, chargedNights: 1, pricePerNight: 3500, totalPrice: 3500 });
     expect(await RoomNight.countDocuments({ bookingId: res.body.data.id })).toBe(1);
   });
 

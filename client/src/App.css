@@ -2,7 +2,7 @@
    This file is reserved for the few global rules that do not fit a utility. */
 
 .skeleton {
-  background: linear-gradient(90deg, #ece6d8 25%, #f5f0e6 50%, #ece6d8 75%);
+  background: linear-gradient(90deg, #ede6d6 25%, #f6f1e7 50%, #ede6d6 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
 }
@@ -18,11 +18,11 @@
 
 /* Booking side panel */
 .drawer-backdrop {
-  animation: drawer-fade 150ms ease-out;
+  animation: drawer-fade 160ms ease-out;
 }
 
 .drawer-panel {
-  animation: drawer-slide 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: drawer-slide 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes drawer-fade {

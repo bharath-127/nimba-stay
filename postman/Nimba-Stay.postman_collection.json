@@ -74,7 +74,7 @@
       ] } }]
     },
     {
-      "name": "Availability → all categories, 1 night (minimum charge applies)",
+      "name": "Availability → all categories, 1 night",
       "request": {
         "method": "GET",
         "url": {
@@ -86,7 +86,7 @@
       "event": [{ "listen": "test", "script": { "exec": [
         "pm.test('200 ok', () => pm.response.to.have.status(200));",
         "const d = pm.response.json().data;",
-        "pm.test('1 night charged as 3', () => { pm.expect(d.nights).to.eql(1); pm.expect(d.chargedNights).to.eql(3); });",
+        "pm.test('1 night charged as 1 night', () => { pm.expect(d.nights).to.eql(1); pm.expect(d.chargedNights).to.eql(1); d.rooms.forEach(r => pm.expect(r.totalPrice).to.eql(r.pricePerNight)); });",
         "pm.test('groups most expensive first', () => { const p = d.groups.map(g => g.pricePerNight); pm.expect([...p].sort((a,b)=>b-a)).to.eql(p); });"
       ] } }]
     },

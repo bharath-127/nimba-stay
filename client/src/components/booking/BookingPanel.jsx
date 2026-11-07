@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import Drawer from '../ui/Drawer.jsx';
 import Button from '../ui/Button.jsx';
+import Icon from '../ui/Icon.jsx';
 import BookingForm, { BOOKING_FORM_ID } from './BookingForm.jsx';
 import BookingReview from './BookingReview.jsx';
 import BookingSuccess from './BookingSuccess.jsx';
 import { formatINR } from '../../utils/format.js';
 
 const GUEST_FIELDS = ['guestName', 'phone'];
+const STEPS = ['Details', 'Review', 'Done'];
+const STEP_INDEX = { details: 0, review: 1, success: 2 };
 
 /**
  * Booking side panel:  details  →  review  →  confirmed
@@ -78,35 +81,35 @@ export default function BookingPanel({ room, checkIn, checkOut, submitting, onCo
     success: 'Booking confirmed',
   };
   const descriptions = {
-    details: 'Step 1 of 2 · Guest details',
-    review: 'Step 2 of 2 · Confirm with the guest',
+    details: 'Enter the guest’s details for this stay',
+    review: 'Confirm with the guest before reserving',
     success: 'The room is reserved for these nights',
   };
 
   let footer;
   if (step === 'details') {
     footer = (
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" form={BOOKING_FORM_ID} size="lg">
+        <Button type="submit" form={BOOKING_FORM_ID} size="xl" icon={<Icon name="arrowRight" className="h-4 w-4" />} className="sm:min-w-56 flex-row-reverse">
           Review booking
         </Button>
       </div>
     );
   } else if (step === 'review') {
     footer = (
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Button variant="secondary" onClick={() => setStep('details')} disabled={submitting}>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Button variant="ghost" onClick={() => setStep('details')} disabled={submitting}>
           Edit details
         </Button>
         {conflict ? (
-          <Button size="lg" onClick={onChooseAnotherRoom}>
+          <Button size="xl" onClick={onChooseAnotherRoom} icon={<Icon name="refresh" className="h-4 w-4" />}>
             Choose another room
           </Button>
         ) : (
-          <Button size="lg" onClick={handleConfirm} loading={submitting}>
+          <Button size="xl" onClick={handleConfirm} loading={submitting} className="sm:min-w-56">
             {submitting ? 'Confirming…' : `Confirm booking · ${formatINR(room.totalPrice)}`}
           </Button>
         )}
@@ -115,7 +118,7 @@ export default function BookingPanel({ room, checkIn, checkOut, submitting, onCo
   } else {
     footer = (
       <div className="flex justify-end">
-        <Button size="lg" onClick={onClose}>
+        <Button size="xl" onClick={onClose} icon={<Icon name="check" className="h-4 w-4" strokeWidth={2.2} />} className="sm:min-w-40">
           Done
         </Button>
       </div>
@@ -130,6 +133,8 @@ export default function BookingPanel({ room, checkIn, checkOut, submitting, onCo
       description={descriptions[step]}
       footer={footer}
       closeDisabled={submitting}
+      steps={STEPS}
+      step={STEP_INDEX[step]}
     >
       {step === 'details' && (
         <BookingForm

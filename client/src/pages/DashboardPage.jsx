@@ -3,6 +3,7 @@ import Header from '../components/layout/Header.jsx';
 import Card from '../components/ui/Card.jsx';
 import Button from '../components/ui/Button.jsx';
 import Alert from '../components/ui/Alert.jsx';
+import Icon from '../components/ui/Icon.jsx';
 import StatsCards from '../components/dashboard/StatsCards.jsx';
 import SearchForm from '../components/availability/SearchForm.jsx';
 import RoomList from '../components/availability/RoomList.jsx';
@@ -100,74 +101,99 @@ export default function DashboardPage() {
   };
 
   const { checkIn, checkOut } = availability.params ?? {};
+  const searched = availability.status === 'success';
 
   return (
     <div id="top" className="min-h-screen">
+      <a
+        href="#availability"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-brand-800 focus:shadow-lg"
+      >
+        Skip to availability
+      </a>
+
       <Header />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-        <div className="mb-6">
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">Room Availability &amp; Booking</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Check which rooms are free for a stay and book a guest in. A room can never be booked twice for the same night.
+      {/* Hero: title + the booking bar, which overlaps the band's bottom edge */}
+      <section className="hero-band" aria-labelledby="page-title">
+        <div className="relative mx-auto max-w-7xl px-4 pb-24 pt-10 sm:px-6 sm:pb-28 sm:pt-14 lg:px-8">
+          <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/85 rise-in">
+            <Icon name="sparkles" className="h-3.5 w-3.5" />
+            Front desk
+          </p>
+          <h1 id="page-title" className="font-display text-3xl font-semibold leading-[1.1] tracking-tight text-white rise-in rise-in-delay-1 sm:text-4xl lg:text-[2.75rem]">
+            Room availability &amp; booking
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm text-white/75 rise-in rise-in-delay-2 sm:text-base">
+            Pick the dates, see every room that is free for the whole stay, and book the guest in. A room can never be booked
+            twice for the same night.
           </p>
         </div>
+      </section>
 
-        <div className="mb-6">
-          <StatsCards stats={stats.data} loading={stats.loading} error={stats.error} range={stats.range} onRetry={stats.refresh} />
+      <main className="relative mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        {/* Booking bar — pulled up into the hero */}
+        <div id="availability" className="-mt-16 scroll-mt-24 sm:-mt-20">
+          <div className="surface p-4 shadow-[var(--shadow-lift)] sm:p-5 rise-in rise-in-delay-2">
+            <SearchForm
+              initialValues={initialSearch}
+              categories={categories}
+              categoriesLoading={categoriesLoading}
+              loading={availability.status === 'loading'}
+              onSearch={handleSearch}
+            />
+          </div>
         </div>
 
         {categoriesError && (
-          <Alert tone="error" title="Could not load room categories" className="mb-6">
+          <Alert tone="error" title="Could not load room categories" className="mt-6">
             {categoriesError.message} You can still search across all categories.
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-1">
-            <Card id="availability" eyebrow="Step 1" title="Search availability" subtitle="Dates and category" className="lg:sticky lg:top-6">
-              <SearchForm
-                initialValues={initialSearch}
-                categories={categories}
-                categoriesLoading={categoriesLoading}
-                loading={availability.status === 'loading'}
-                onSearch={handleSearch}
-              />
-            </Card>
-          </div>
-
-          <div className="lg:col-span-2">
-            <Card
-              eyebrow="Step 2"
-              title="Available rooms"
-              subtitle="Only rooms free for every night of the stay, by category"
-              actions={
-                availability.status === 'success' && (
-                  <Button variant="ghost" size="sm" onClick={availability.refresh}>
-                    Refresh
-                  </Button>
-                )
-              }
-            >
-              <RoomList
-                status={availability.status}
-                data={availability.data}
-                error={availability.error}
-                selectedRoomId={selectedRoom?.id}
-                onSelect={handleSelectRoom}
-                onRetry={availability.refresh}
-              />
-            </Card>
-          </div>
+        <div className="mt-8 sm:mt-10">
+          <StatsCards stats={stats.data} loading={stats.loading} error={stats.error} range={stats.range} onRetry={stats.refresh} />
         </div>
 
-        <div className="mt-6 sm:mt-8">
+        <div className="mt-8 sm:mt-10">
+          <Card
+            eyebrow="Results"
+            title="Available rooms"
+            subtitle={searched ? 'Only rooms free for every night of the stay, by category' : 'Search above to see which rooms are free'}
+            actions={
+              searched && (
+                <Button variant="ghost" size="sm" onClick={availability.refresh} icon={<Icon name="refresh" className="h-4 w-4" />}>
+                  Refresh
+                </Button>
+              )
+            }
+          >
+            <RoomList
+              status={availability.status}
+              data={availability.data}
+              error={availability.error}
+              selectedRoomId={selectedRoom?.id}
+              onSelect={handleSelectRoom}
+              onRetry={availability.refresh}
+            />
+          </Card>
+        </div>
+
+        <div className="mt-8 sm:mt-10">
           <Card
             id="bookings"
+            eyebrow="Records"
             title="Recent bookings"
             subtitle="Latest 10 · cancelling or checking out a guest frees the room's remaining nights immediately"
+            className="scroll-mt-24"
             actions={
-              <Button variant="ghost" size="sm" onClick={recent.refresh} loading={recent.loading && recent.bookings.length > 0}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={recent.refresh}
+                loading={recent.loading && recent.bookings.length > 0}
+                icon={<Icon name="refresh" className="h-4 w-4" />}
+              >
                 Refresh
               </Button>
             }
@@ -185,8 +211,14 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <div className="mt-6 sm:mt-8">
-          <Card id="blocks" title="Maintenance blocks" subtitle="Rooms out of service for a period are never offered for those dates">
+        <div className="mt-8 sm:mt-10">
+          <Card
+            id="blocks"
+            eyebrow="Housekeeping"
+            title="Maintenance blocks"
+            subtitle="Rooms out of service for a period are never offered for those dates"
+            className="scroll-mt-24"
+          >
             <RoomBlocksCard
               blocks={blocks.blocks}
               rooms={blocks.rooms}
@@ -202,8 +234,11 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      <footer className="border-t border-sand-200 py-6 text-center text-xs text-slate-400">
-        Nimba Stay · Front-desk booking tool for Nimba Nature Cure &amp; Holistic Centre
+      <footer className="border-t border-sand-200/80 bg-white/40">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-6 text-xs text-ink-400 sm:flex-row sm:px-6 lg:px-8">
+          <span className="font-display text-sm text-ink-500">Nimba Stay</span>
+          <span>Front-desk booking tool for Nimba Nature Cure &amp; Holistic Centre</span>
+        </div>
       </footer>
 
       {selectedRoom && checkIn && checkOut && (

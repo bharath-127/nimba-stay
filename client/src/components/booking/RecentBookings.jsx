@@ -1,27 +1,54 @@
 import { useState } from 'react';
 import Button from '../ui/Button.jsx';
 import Alert from '../ui/Alert.jsx';
+import Badge, { categoryTone } from '../ui/Badge.jsx';
+import EmptyState from '../ui/EmptyState.jsx';
+import Icon from '../ui/Icon.jsx';
 import Spinner from '../ui/Spinner.jsx';
 import BookingStatusBadge, { StayPhase } from './BookingStatusBadge.jsx';
 import { formatDisplayDate, formatTimestamp, todayIso } from '../../utils/dates.js';
 import { formatINR, pluralize } from '../../utils/format.js';
 import { bookingPhase, canCancel, canCheckOut } from '../../utils/bookingStatus.js';
 
+/** "Fri, 20 Nov" — the year is noise inside a table of recent stays. */
+const shortDate = (iso) => formatDisplayDate(iso).replace(/ \d{4}$/, '');
+
+/** "Asha Mehta" → "AM"; single names use their first two letters. */
+export function initials(name = '') {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '·';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function Avatar({ name, muted }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold ring-1 ring-inset ${
+        muted ? 'bg-sand-100 text-ink-400 ring-sand-200' : 'bg-brand-100 text-brand-800 ring-brand-200'
+      }`}
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
 /** Two-step inline confirmation — no native dialog, keyboard and screen-reader friendly. */
-function ConfirmAction({ label, confirmLabel, prompt, variant = 'danger', ariaLabel, busy, onConfirm }) {
+function ConfirmAction({ label, confirmLabel, prompt, variant = 'danger', icon, ariaLabel, busy, onConfirm }) {
   const [confirming, setConfirming] = useState(false);
 
   if (!confirming) {
     return (
-      <Button variant={variant} size="sm" onClick={() => setConfirming(true)} aria-label={ariaLabel}>
+      <Button variant={variant} size="sm" icon={icon} onClick={() => setConfirming(true)} aria-label={ariaLabel}>
         {label}
       </Button>
     );
   }
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2" role="group" aria-label={`Confirm: ${ariaLabel}`}>
-      <span className="text-xs text-slate-500">{prompt}</span>
-      <Button variant={variant} size="sm" loading={busy} onClick={onConfirm}>
+    <div className="flex flex-wrap items-center justify-end gap-2 rounded-lg bg-sand-50 px-2 py-1.5 ring-1 ring-inset ring-sand-200" role="group" aria-label={`Confirm: ${ariaLabel}`}>
+      <span className="text-xs text-ink-500">{prompt}</span>
+      <Button variant={variant === 'danger' ? 'danger' : 'primary'} size="sm" loading={busy} onClick={onConfirm}>
         {confirmLabel}
       </Button>
       <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirming(false)}>
@@ -41,6 +68,7 @@ function Actions({ booking, today, busy, onCancel, onCheckOut }) {
         confirmLabel="Yes, check out"
         prompt="Leaving today? Remaining nights are freed."
         variant="secondary"
+        icon={<Icon name="logout" className="h-3.5 w-3.5" strokeWidth={2} />}
         ariaLabel={`Check out ${booking.guestName}`}
         busy={busy}
         onConfirm={() => onCheckOut(booking.id)}
@@ -64,20 +92,33 @@ function Actions({ booking, today, busy, onCancel, onCheckOut }) {
   return <div className="flex flex-wrap items-center justify-end gap-2">{actions}</div>;
 }
 
-function StatusCell({ booking, today }) {
+function StatusCell({ booking, today, align = 'start' }) {
   const phase = bookingPhase(booking, today);
+  const leftEarly = booking.status === 'checked_out' && booking.checkedOutOn && booking.checkedOutOn < booking.checkOut;
   return (
-    <div className="flex flex-col items-start gap-1">
+    <div className={`flex flex-col gap-1 ${align === 'end' ? 'items-end text-right' : 'items-start'}`}>
       <BookingStatusBadge status={booking.status} />
       {booking.status === 'confirmed' && <StayPhase phase={phase} />}
-      {booking.status === 'checked_out' && booking.checkedOutOn && booking.checkedOutOn < booking.checkOut && (
-        <span className="text-xs text-slate-500">Left early on {formatDisplayDate(booking.checkedOutOn)}</span>
-      )}
+      {leftEarly && <span className="text-xs text-ink-500">Left early on {formatDisplayDate(booking.checkedOutOn)}</span>}
     </div>
   );
 }
 
-const muted = (b) => b.status !== 'confirmed';
+function StayRange({ booking }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <Icon name="calendar" className="h-4 w-4 shrink-0 text-ink-400" />
+      <span>
+        {shortDate(booking.checkIn)} <span className="text-ink-400">→</span> {shortDate(booking.checkOut)}
+        <span className="text-ink-400"> · </span>
+        {pluralize(booking.nights, 'night')}
+      </span>
+    </span>
+  );
+}
+
+const isMuted = (b) => b.status === 'cancelled';
+const isCalm = (b) => b.status === 'checked_out';
 
 /**
  * Latest bookings with clear status indicators, a check-out action for
@@ -90,7 +131,15 @@ export default function RecentBookings({ bookings, loading, error, busyId, actio
 
   if (error) {
     return (
-      <Alert tone="error" title="Could not load bookings" action={<Button variant="secondary" size="sm" onClick={onRefresh}>Try again</Button>}>
+      <Alert
+        tone="error"
+        title="Could not load bookings"
+        action={
+          <Button variant="secondary" size="sm" icon={<Icon name="refresh" className="h-4 w-4" />} onClick={onRefresh}>
+            Try again
+          </Button>
+        }
+      >
         {error.message}
       </Alert>
     );
@@ -98,14 +147,14 @@ export default function RecentBookings({ bookings, loading, error, busyId, actio
 
   if (loading && bookings.length === 0) {
     return (
-      <div className="flex items-center gap-2 py-6 text-sm text-slate-500">
+      <div className="flex items-center gap-2 py-8 text-sm text-ink-500">
         <Spinner className="h-4 w-4" /> Loading bookings…
       </div>
     );
   }
 
   if (bookings.length === 0) {
-    return <p className="py-6 text-center text-sm text-slate-500">No bookings yet. Confirmed bookings will appear here.</p>;
+    return <EmptyState compact title="No bookings yet" description="Confirmed bookings will appear here as soon as a guest is booked in." />;
   }
 
   return (
@@ -118,87 +167,105 @@ export default function RecentBookings({ bookings, loading, error, busyId, actio
 
       {/* Phones: stacked cards */}
       <ul className="space-y-3 md:hidden" aria-label="Recent bookings">
-        {bookings.map((b) => (
-          <li key={b.id} className={`rounded-lg border p-4 ${muted(b) ? 'border-slate-200 bg-slate-50' : 'border-sand-200 bg-white'}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className={`font-medium ${b.status === 'cancelled' ? 'text-slate-500 line-through decoration-slate-300' : 'text-slate-900'}`}>{b.guestName}</p>
-                <p className="text-xs text-slate-500">{b.phone}</p>
+        {bookings.map((b, i) => {
+          const muted = isMuted(b);
+          return (
+            <li key={b.id} className={`surface rise-in p-4 ${muted ? 'bg-sand-50/70' : ''}`} style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Avatar name={b.guestName} muted={muted || isCalm(b)} />
+                  <div className="min-w-0">
+                    <p className={`truncate font-medium ${muted ? 'text-ink-400 line-through decoration-ink-300' : 'text-ink-900'}`}>{b.guestName}</p>
+                    <p className="flex items-center gap-1 text-xs text-ink-500">
+                      <Icon name="phone" className="h-3 w-3" /> {b.phone}
+                    </p>
+                  </div>
+                </div>
+                <StatusCell booking={b} today={today} align="end" />
               </div>
-              <StatusCell booking={b} today={today} />
-            </div>
-            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-              <div>
-                <dt className="text-xs text-slate-500">Room</dt>
-                <dd className="font-medium text-slate-800">
-                  {b.room?.roomNumber ?? '—'} <span className="font-normal text-slate-500">· {b.room?.category}</span>
-                </dd>
+
+              <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <div>
+                  <dt className="text-[11px] font-medium uppercase tracking-wide text-ink-400">Room</dt>
+                  <dd className="mt-0.5 flex flex-wrap items-center gap-1.5 font-medium text-ink-800">
+                    <span className="font-display">{b.room?.roomNumber ?? '—'}</span>
+                    {b.room?.category && <Badge tone={categoryTone(b.room.category)}>{b.room.category}</Badge>}
+                  </dd>
+                </div>
+                <div className="text-right">
+                  <dt className="text-[11px] font-medium uppercase tracking-wide text-ink-400">Total</dt>
+                  <dd className="tnum mt-0.5 font-semibold text-ink-900">{formatINR(b.totalPrice)}</dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="text-[11px] font-medium uppercase tracking-wide text-ink-400">Stay</dt>
+                  <dd className="mt-0.5 text-ink-800">
+                    <StayRange booking={b} />
+                  </dd>
+                </div>
+              </dl>
+
+              <div className="mt-4 flex items-center justify-between gap-3 border-t divider-sand pt-3">
+                <span className="text-xs text-ink-400">Booked {formatTimestamp(b.createdAt)}</span>
+                <Actions booking={b} today={today} busy={busyId === b.id} onCancel={onCancel} onCheckOut={onCheckOut} />
               </div>
-              <div className="text-right">
-                <dt className="text-xs text-slate-500">Total</dt>
-                <dd className="font-semibold text-slate-900">{formatINR(b.totalPrice)}</dd>
-              </div>
-              <div className="col-span-2">
-                <dt className="text-xs text-slate-500">
-                  Stay · {pluralize(b.nights, 'night')}
-                  {b.chargedNights > b.nights ? ` · charged ${b.chargedNights}` : ''}
-                </dt>
-                <dd className="text-slate-800">
-                  {formatDisplayDate(b.checkIn)} → {formatDisplayDate(b.checkOut)}
-                </dd>
-              </div>
-            </dl>
-            <div className="mt-3 flex items-center justify-between gap-3 border-t border-sand-100 pt-3">
-              <span className="text-xs text-slate-400">Booked {formatTimestamp(b.createdAt)}</span>
-              <Actions booking={b} today={today} busy={busyId === b.id} onCancel={onCancel} onCheckOut={onCheckOut} />
-            </div>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
 
       {/* Tablet and up: table */}
-      <div className="-mx-5 hidden overflow-x-auto px-5 md:block">
+      <div className="-mx-5 hidden overflow-x-auto px-5 sm:-mx-6 sm:px-6 md:block">
         <table className="min-w-full text-left text-sm">
           <caption className="sr-only">Recent bookings, newest first</caption>
           <thead>
-            <tr className="border-b border-sand-200 text-[11px] uppercase tracking-wide text-slate-500">
-              <th scope="col" className="py-2 pr-4 font-semibold">Guest</th>
-              <th scope="col" className="py-2 pr-4 font-semibold">Room</th>
-              <th scope="col" className="py-2 pr-4 font-semibold">Stay</th>
-              <th scope="col" className="py-2 pr-4 text-right font-semibold">Total</th>
-              <th scope="col" className="py-2 pr-4 font-semibold">Status</th>
-              <th scope="col" className="py-2 pr-4 font-semibold">Booked</th>
-              <th scope="col" className="py-2 font-semibold"><span className="sr-only">Actions</span></th>
+            <tr className="border-b divider-sand text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+              <th scope="col" className="py-2.5 pr-4">Guest</th>
+              <th scope="col" className="py-2.5 pr-4">Room</th>
+              <th scope="col" className="py-2.5 pr-4">Stay</th>
+              <th scope="col" className="py-2.5 pr-4 text-right">Total</th>
+              <th scope="col" className="py-2.5 pr-4">Status</th>
+              <th scope="col" className="py-2.5 pr-4">Booked</th>
+              <th scope="col" className="py-2.5"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-sand-100">
-            {bookings.map((b) => (
-              <tr key={b.id} className={muted(b) ? 'bg-slate-50/60 text-slate-500' : 'text-slate-800'}>
-                <td className="py-3 pr-4">
-                  <p className={`font-medium ${b.status === 'cancelled' ? 'line-through decoration-slate-300' : ''}`}>{b.guestName}</p>
-                  <p className="text-xs text-slate-500">{b.phone}</p>
-                </td>
-                <td className="whitespace-nowrap py-3 pr-4">
-                  {b.room?.roomNumber ?? '—'}
-                  <span className="block text-xs text-slate-500">{b.room?.category}</span>
-                </td>
-                <td className="whitespace-nowrap py-3 pr-4">
-                  {formatDisplayDate(b.checkIn)} → {formatDisplayDate(b.checkOut)}
-                  <span className="block text-xs text-slate-500">
-                    {pluralize(b.nights, 'night')}
-                    {b.chargedNights > b.nights ? ` · charged for ${b.chargedNights}` : ''}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap py-3 pr-4 text-right font-medium">{formatINR(b.totalPrice)}</td>
-                <td className="py-3 pr-4">
-                  <StatusCell booking={b} today={today} />
-                </td>
-                <td className="whitespace-nowrap py-3 pr-4 text-xs text-slate-500">{formatTimestamp(b.createdAt)}</td>
-                <td className="py-3 text-right">
-                  <Actions booking={b} today={today} busy={busyId === b.id} onCancel={onCancel} onCheckOut={onCheckOut} />
-                </td>
-              </tr>
-            ))}
+            {bookings.map((b) => {
+              const muted = isMuted(b);
+              return (
+                <tr key={b.id} className={`group transition-colors ${muted ? 'bg-sand-50/50 text-ink-400' : isCalm(b) ? 'text-ink-600' : 'text-ink-800 hover:bg-sand-50/60'}`}>
+                  <td className="py-3.5 pr-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={b.guestName} muted={muted || isCalm(b)} />
+                      <div className="min-w-0">
+                        <p className={`font-medium ${muted ? 'line-through decoration-ink-300' : 'text-ink-900'}`}>{b.guestName}</p>
+                        <p className="flex items-center gap-1 text-xs text-ink-500">
+                          <Icon name="phone" className="h-3 w-3" /> {b.phone}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap py-3.5 pr-4">
+                    <div className="flex items-center gap-2">
+                      <span className="font-display text-base font-semibold">{b.room?.roomNumber ?? '—'}</span>
+                      {b.room?.category && <Badge tone={categoryTone(b.room.category)}>{b.room.category}</Badge>}
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap py-3.5 pr-4">
+                    <StayRange booking={b} />
+                  </td>
+                  <td className="tnum whitespace-nowrap py-3.5 pr-4 text-right font-semibold text-ink-900">{formatINR(b.totalPrice)}</td>
+                  <td className="py-3.5 pr-4">
+                    <StatusCell booking={b} today={today} />
+                  </td>
+                  <td className="whitespace-nowrap py-3.5 pr-4 text-xs text-ink-400">{formatTimestamp(b.createdAt)}</td>
+                  <td className="py-3.5 text-right">
+                    <div className="transition-opacity md:opacity-70 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+                      <Actions booking={b} today={today} busy={busyId === b.id} onCancel={onCancel} onCheckOut={onCheckOut} />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

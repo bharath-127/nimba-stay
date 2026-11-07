@@ -27,12 +27,16 @@ describe('RoomBlocksCard', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('lists current and upcoming blocks with their period and reason', () => {
+  it('lists current and upcoming blocks with their room, period and reason', () => {
     setup();
     const list = within(screen.getByRole('list', { name: /room blocks/i }));
-    expect(list.getAllByRole('listitem')).toHaveLength(2);
-    expect(list.getByText(/Thu, 1 Jan 2026 → until lifted · Under maintenance/)).toBeInTheDocument();
-    expect(list.getByText(/Wed, 25 Nov 2026 → Fri, 27 Nov 2026 · Plumbing/)).toBeInTheDocument();
+    const items = list.getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    expect(within(items[0]).getByText('Room DLX-203')).toBeInTheDocument();
+    expect(within(items[0]).getByText(/Thu, 1 Jan 2026 → until lifted/)).toBeInTheDocument();
+    expect(within(items[0]).getByText('Under maintenance')).toBeInTheDocument();
+    expect(within(items[1]).getByText(/Wed, 25 Nov 2026 → Fri, 27 Nov 2026/)).toBeInTheDocument();
+    expect(within(items[1]).getByText('Plumbing')).toBeInTheDocument();
   });
 
   it('offers only active rooms in the picker', () => {

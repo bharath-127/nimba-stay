@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Input from '../ui/Input.jsx';
 import Alert from '../ui/Alert.jsx';
+import Icon from '../ui/Icon.jsx';
 import StaySummary from './StaySummary.jsx';
 import { validateGuest, hasErrors } from '../../utils/validation.js';
 
@@ -34,8 +35,10 @@ export default function BookingForm({ room, checkIn, checkOut, initialValues, se
   };
 
   return (
-    <form id={BOOKING_FORM_ID} onSubmit={handleSubmit} noValidate className="space-y-5" aria-label="Guest details">
-      <StaySummary room={room} checkIn={checkIn} checkOut={checkOut} />
+    <form id={BOOKING_FORM_ID} onSubmit={handleSubmit} noValidate className="space-y-6" aria-label="Guest details">
+      <div className="rise-in">
+        <StaySummary room={room} checkIn={checkIn} checkOut={checkOut} />
+      </div>
 
       {serverMessage && (
         <Alert tone="error" title="Please check the booking details">
@@ -43,13 +46,15 @@ export default function BookingForm({ room, checkIn, checkOut, initialValues, se
         </Alert>
       )}
 
-      <div className="space-y-4">
+      <fieldset className="space-y-4 rise-in rise-in-delay-1">
+        <legend className="mb-1 font-display text-base font-semibold text-ink-900">Who is staying?</legend>
         <Input
           id="guestName"
           label="Guest full name"
           type="text"
           autoComplete="name"
           placeholder="e.g. Asha Mehta"
+          leading={<Icon name="user" className="h-4 w-4" />}
           value={values.guestName}
           onChange={update('guestName')}
           error={errors.guestName}
@@ -64,6 +69,7 @@ export default function BookingForm({ room, checkIn, checkOut, initialValues, se
           inputMode="numeric"
           autoComplete="tel-national"
           placeholder="10-digit mobile number"
+          leading={<Icon name="phone" className="h-4 w-4" />}
           value={values.phone}
           onChange={update('phone')}
           error={errors.phone}
@@ -71,7 +77,7 @@ export default function BookingForm({ room, checkIn, checkOut, initialValues, se
           maxLength={10}
           required
         />
-      </div>
+      </fieldset>
     </form>
   );
 }

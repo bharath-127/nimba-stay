@@ -5,7 +5,10 @@ import { MIN_CHARGED_NIGHTS } from './constants.js';
  * the client never supplies a price (business rule 9).
  */
 
-/** Nights billed: the actual nights, but never fewer than the minimum. */
+/**
+ * Nights billed: the actual nights, but never fewer than the minimum.
+ * With MIN_CHARGED_NIGHTS = 1 (the current setting) this is simply `nights`.
+ */
 export function chargedNightsFor(nights, minimum = MIN_CHARGED_NIGHTS) {
   if (!Number.isInteger(nights) || nights <= 0) {
     throw new Error(`nights must be a positive integer, received ${nights}`);

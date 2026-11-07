@@ -20,8 +20,10 @@ function setup(props = {}) {
 describe('BookingForm (details step)', () => {
   it('shows the selected room, dates and server-computed total', () => {
     setup();
-    expect(screen.getByText('DLX-201 · Deluxe')).toBeInTheDocument();
+    expect(screen.getByText('DLX-201')).toBeInTheDocument();
+    expect(screen.getByText('Deluxe')).toBeInTheDocument();
     expect(screen.getByText('Fri, 20 Nov 2026')).toBeInTheDocument();
+    expect(screen.getByText('₹5,500 × 3 nights')).toBeInTheDocument();
     expect(screen.getByText('Mon, 23 Nov 2026')).toBeInTheDocument();
     expect(screen.getByText('₹16,500')).toBeInTheDocument();
   });

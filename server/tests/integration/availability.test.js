@@ -81,11 +81,11 @@ describe('GET /api/availability — results and pricing', () => {
     }
   });
 
-  it('charges a minimum of 3 nights for a shorter stay', async () => {
+  it('charges a 1-night stay for exactly 1 night (no minimum-night policy)', async () => {
     const res = await search({ checkIn: '2026-11-20', checkOut: '2026-11-21', category: 'Standard' });
-    expect(res.body.data).toMatchObject({ nights: 1, chargedNights: 3, minChargedNights: 3 });
+    expect(res.body.data).toMatchObject({ nights: 1, chargedNights: 1, minChargedNights: 1 });
     for (const room of res.body.data.rooms) {
-      expect(room).toMatchObject({ nights: 1, chargedNights: 3, pricePerNight: 3500, totalPrice: 10500 });
+      expect(room).toMatchObject({ nights: 1, chargedNights: 1, pricePerNight: 3500, totalPrice: 3500 });
     }
   });
 

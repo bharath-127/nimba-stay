@@ -1,26 +1,60 @@
 @import "tailwindcss";
 
-/* Nimba Stay design tokens — a restrained hospitality palette:
-   deep leaf green for brand actions, warm sand for surfaces. */
+/* ──────────────────────────────────────────────────────────────────────────
+   Nimba Stay design tokens
+   A calm, editorial hospitality palette: deep forest green for brand and
+   actions, sage for soft accents, warm sand surfaces, ink for text. One
+   accent per room category so a glance tells Standard from Suite.
+   ────────────────────────────────────────────────────────────────────────── */
 @theme {
-  --color-brand-50: #f3f7f2;
-  --color-brand-100: #e2ecdf;
-  --color-brand-200: #c5d9c0;
-  --color-brand-300: #9dbd96;
-  --color-brand-400: #6f9a68;
-  --color-brand-500: #4f7d49;
-  --color-brand-600: #3c6338;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+
+  --color-brand-50: #f2f7f1;
+  --color-brand-100: #e0ecdc;
+  --color-brand-200: #c2d9bb;
+  --color-brand-300: #98bd8f;
+  --color-brand-400: #6a9a61;
+  --color-brand-500: #4b7c44;
+  --color-brand-600: #396335;
   --color-brand-700: #2f4f2d;
-  --color-brand-800: #284025;
-  --color-brand-900: #21351f;
+  --color-brand-800: #273f26;
+  --color-brand-900: #1f331f;
+  --color-brand-950: #122012;
+
+  --color-sage-100: #e8efe3;
+  --color-sage-200: #d3e0cb;
+  --color-sage-300: #b5c9a9;
+  --color-sage-400: #93ad86;
 
   --color-sand-50: #faf8f3;
-  --color-sand-100: #f3eee3;
-  --color-sand-200: #e6dcc8;
-  --color-sand-300: #d3c3a3;
+  --color-sand-100: #f4efe4;
+  --color-sand-200: #e8dfcc;
+  --color-sand-300: #d6c7a8;
+  --color-sand-400: #bda77e;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: Georgia, "Times New Roman", serif;
+  --color-ink-900: #1c211c;
+  --color-ink-700: #3a423a;
+  --color-ink-500: #6b746b;
+  --color-ink-400: #8d968d;
+  --color-ink-300: #b4bcb4;
+
+  --color-cat-standard: #6b7280;
+  --color-cat-standard-soft: #eef0f3;
+  --color-cat-deluxe: #2a6f97;
+  --color-cat-deluxe-soft: #e4eff6;
+  --color-cat-premium: #6b4fbb;
+  --color-cat-premium-soft: #ede8f8;
+  --color-cat-suite: #b7791f;
+  --color-cat-suite-soft: #fbf1dc;
+
+  --shadow-card: 0 1px 2px rgb(31 51 31 / 0.04), 0 4px 16px -8px rgb(31 51 31 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(31 51 31 / 0.06), 0 16px 32px -12px rgb(31 51 31 / 0.22);
+  --shadow-ring: 0 0 0 1px rgb(47 79 45 / 0.08);
+
+  --radius-xl2: 1.125rem;
+
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 html {
@@ -28,11 +62,110 @@ html {
 }
 
 body {
-  @apply bg-sand-50 text-slate-800 antialiased;
+  @apply font-sans text-ink-900 antialiased;
+  background:
+    radial-gradient(1200px 420px at 15% -10%, rgb(226 236 220 / 0.9), transparent 60%),
+    radial-gradient(900px 380px at 100% 0%, rgb(244 239 228 / 0.9), transparent 55%),
+    var(--color-sand-50);
+  min-height: 100vh;
+}
+
+::selection {
+  background: var(--color-brand-200);
 }
 
 /* Native date inputs: keep the picker icon readable on all browsers. */
 input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
-  opacity: 0.6;
+  opacity: 0.55;
+  transition: opacity 150ms;
+}
+input[type="date"]:hover::-webkit-calendar-picker-indicator {
+  opacity: 0.9;
+}
+
+/* Tabular figures for every number that sits in a column. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Surfaces */
+.surface {
+  @apply rounded-[var(--radius-xl2)] border border-sand-200/80 bg-white;
+  box-shadow: var(--shadow-card);
+}
+
+.surface-interactive {
+  transition:
+    transform 200ms var(--ease-out-soft),
+    box-shadow 200ms var(--ease-out-soft),
+    border-color 150ms;
+}
+.surface-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lift);
+}
+
+/* Hero band: forest gradient with a faint leaf lattice. */
+.hero-band {
+  position: relative;
+  color: white;
+  background:
+    radial-gradient(900px 300px at 90% -20%, rgb(147 173 134 / 0.35), transparent 60%),
+    linear-gradient(120deg, var(--color-brand-800), var(--color-brand-700) 55%, #37603a);
+  overflow: hidden;
+}
+.hero-band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.12;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath d='M60 14c-18 14-28 30-28 48a28 28 0 0 0 56 0c0-18-10-34-28-48z' fill='none' stroke='%23ffffff' stroke-width='1.2'/%3E%3Cpath d='M60 30v60' stroke='%23ffffff' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+}
+
+/* Soft dividers inside cards */
+.divider-sand {
+  @apply border-sand-200/80;
+}
+
+/* Focus ring shared by custom controls */
+.focus-ring {
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white;
+}
+
+/* Entrances */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise-in {
+  animation: rise-in 320ms var(--ease-out-soft) both;
+}
+.rise-in-delay-1 {
+  animation-delay: 60ms;
+}
+.rise-in-delay-2 {
+  animation-delay: 120ms;
+}
+.rise-in-delay-3 {
+  animation-delay: 180ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise-in,
+  .surface-interactive {
+    animation: none;
+    transition: none;
+  }
+  .surface-interactive:hover {
+    transform: none;
+  }
 }

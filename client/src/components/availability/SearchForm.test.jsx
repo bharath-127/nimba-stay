@@ -23,6 +23,7 @@ describe('SearchForm', () => {
     setup();
     expect(screen.getByLabelText(/check-in/i)).toHaveValue('2026-11-20');
     expect(screen.getByLabelText(/check-out/i)).toHaveValue('2026-11-22');
+    expect(screen.getByText('2 nights')).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /Deluxe · ₹5,500\/night/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /search availability/i })).toBeEnabled();
   });
@@ -32,6 +33,12 @@ describe('SearchForm', () => {
     fireEvent.change(screen.getByLabelText(/room category/i), { target: { value: 'Suite' } });
     fireEvent.click(screen.getByRole('button', { name: /search availability/i }));
     expect(onSearch).toHaveBeenCalledWith({ checkIn: '2026-11-20', checkOut: '2026-11-22', category: 'Suite' });
+  });
+
+  it('moves check-out forward when check-in is set on or after it', () => {
+    setup();
+    fireEvent.change(screen.getByLabelText(/check-in/i), { target: { value: '2026-11-25' } });
+    expect(screen.getByLabelText(/check-out/i)).toHaveValue('2026-11-26');
   });
 
   it('shows a validation error and does not search when check-out is not after check-in', () => {

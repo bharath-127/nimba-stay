@@ -75,7 +75,7 @@ function StatSkeleton() {
 export default function StatsCards({ stats, loading, error, range, onRetry }) {
   if (!stats && loading) {
     return (
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" aria-busy="true" aria-label="Loading property summary">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4" aria-busy="true" aria-label="Loading property summary">
         <StatSkeleton />
         <StatSkeleton />
         <StatSkeleton />
@@ -117,7 +117,7 @@ export default function StatsCards({ stats, loading, error, range, onRetry }) {
       </p>
 
       <dl
-        className={`grid grid-cols-2 gap-3 transition-opacity duration-200 sm:gap-4 xl:grid-cols-4 ${loading ? 'opacity-70' : ''}`}
+        className={`grid grid-cols-2 gap-3 transition-opacity duration-200 sm:gap-4 lg:grid-cols-4 ${loading ? 'opacity-70' : ''}`}
         aria-busy={loading || undefined}
       >
         {buildItems(stats, range).map((item, i) => {

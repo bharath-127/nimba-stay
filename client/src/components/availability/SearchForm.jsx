@@ -51,7 +51,7 @@ export default function SearchForm({ initialValues, categories, categoriesLoadin
       onSubmit={handleSubmit}
       noValidate
       aria-label="Search availability"
-      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto] lg:items-start"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto] lg:items-start lg:gap-x-4"
     >
       <Input
         id="checkIn"

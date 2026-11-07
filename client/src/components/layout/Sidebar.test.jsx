@@ -11,6 +11,7 @@ describe('Sidebar', () => {
     expect(nav.getByRole('link', { name: /availability/i })).toHaveAttribute('href', '#availability');
     expect(nav.getByRole('link', { name: /bookings/i })).toHaveAttribute('href', '#bookings');
     expect(nav.getByRole('link', { name: /maintenance/i })).toHaveAttribute('href', '#maintenance');
+    expect(nav.getAllByRole('link')).toHaveLength(4);
   });
 
   it('marks Dashboard as the current page by default', () => {
@@ -19,10 +20,8 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: /bookings/i })).not.toHaveAttribute('aria-current');
   });
 
-  it('shows Reports as coming soon, not as a link', () => {
+  it('has no Reports entry', () => {
     render(<Sidebar />);
-    expect(screen.queryByRole('link', { name: /reports/i })).not.toBeInTheDocument();
-    expect(screen.getByText('Reports')).toBeInTheDocument();
-    expect(screen.getByText('Soon')).toBeInTheDocument();
+    expect(screen.queryByText(/reports/i)).not.toBeInTheDocument();
   });
 });

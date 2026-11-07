@@ -1,12 +1,15 @@
-/* Sidebar nature scene — pure CSS + inline SVG, no image assets. */
+/* Dark forest-green sidebar — pure CSS + inline SVG, no image assets. */
 
-.sidebar-scene {
+.sidebar-dark {
+  color: #fff;
   background:
-    radial-gradient(420px 220px at 20% 0%, rgb(255 255 255 / 0.9), transparent 70%),
-    linear-gradient(180deg, #f7f9f2 0%, #eef4e6 38%, #d9e7cc 62%, #a9c89a 82%, #6f9c66 100%);
+    radial-gradient(360px 200px at 0% 0%, rgb(255 255 255 / 0.08), transparent 70%),
+    linear-gradient(180deg, #1f331f 0%, #273f26 45%, #2f4f2d 100%);
 }
 
-.sidebar-scene__art {
+/* The illustrated scene sits at the foot of the panel, dimmed so the
+   panel still reads as a single dark surface. */
+.sidebar-dark__art {
   position: absolute;
   inset-x: 0;
   bottom: 0;
@@ -14,21 +17,33 @@
   height: auto;
   display: block;
   pointer-events: none;
+  opacity: 0.85;
 }
 
-.sidebar-scene__leaf {
+/* Fade the top of the scene into the panel colour. */
+.sidebar-dark__fade {
+  position: absolute;
+  inset-x: 0;
+  bottom: 0;
+  height: 320px;
+  pointer-events: none;
+  background: linear-gradient(180deg, #273f26 0%, rgb(39 63 38 / 0.55) 30%, transparent 60%);
+}
+
+.sidebar-dark__leaf {
   position: absolute;
   pointer-events: none;
-  opacity: 0.9;
+  opacity: 0.35;
 }
 
-/* On small screens the sidebar is a strip: keep the gradient, hide the scene. */
+/* Below lg the sidebar is a horizontal strip: keep the dark panel, hide the scene. */
 @media (max-width: 1023px) {
-  .sidebar-scene {
-    background: linear-gradient(90deg, #f7f9f2 0%, #e7efdd 100%);
+  .sidebar-dark {
+    background: linear-gradient(90deg, #1f331f 0%, #2f4f2d 100%);
   }
-  .sidebar-scene__art,
-  .sidebar-scene__leaf {
+  .sidebar-dark__art,
+  .sidebar-dark__fade,
+  .sidebar-dark__leaf {
     display: none;
   }
 }

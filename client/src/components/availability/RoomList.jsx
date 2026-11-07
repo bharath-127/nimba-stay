@@ -12,13 +12,16 @@ const shortDate = (iso) => formatDisplayDate(iso).replace(/^\w{3}, /, '');
 function SkeletonRow() {
   return (
     <div className="surface flex items-center gap-4 p-4" aria-hidden="true">
-      <div className="skeleton h-20 w-[7.5rem] shrink-0 rounded-xl" />
+      <div className="skeleton h-[84px] w-[135px] shrink-0 rounded-xl" />
       <div className="flex-1 space-y-2.5">
         <div className="skeleton h-5 w-32 rounded-md" />
         <div className="skeleton h-3.5 w-48 rounded-md" />
       </div>
-      <div className="hidden items-center gap-5 sm:flex">
-        <div className="skeleton h-9 w-24 rounded-md" />
+      <div className="hidden items-center gap-8 md:flex">
+        <div className="space-y-2">
+          <div className="skeleton h-4 w-24 rounded-md" />
+          <div className="skeleton h-7 w-20 rounded-md" />
+        </div>
         <div className="skeleton h-11 w-32 rounded-lg" />
       </div>
     </div>
@@ -109,7 +112,7 @@ export default function RoomList({ status, data, error, selectedRoomId, onSelect
           </div>
         </div>
         {success && (
-          <span className="tnum inline-flex items-center rounded-lg bg-brand-100 px-3 py-1.5 text-sm font-semibold text-brand-800">
+          <span className="tnum inline-flex items-center rounded-lg bg-brand-100 px-3.5 py-2 text-sm font-semibold text-brand-800 ring-1 ring-inset ring-brand-200/60">
             {pluralize(nights, 'night')}
           </span>
         )}

@@ -1,62 +1,37 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { ApiError } from '../../services/api.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import Header from './Header.jsx';
 
-vi.mock('../../services/roomService.js', () => ({ getHealth: vi.fn() }));
+afterEach(() => vi.unstubAllEnvs());
 
-const { getHealth } = await import('../../services/roomService.js');
-const { default: Header } = await import('./Header.jsx');
-
-// Each test resets the mock in its own body. Clearing a mock that will
-// return rejected promises from inside a beforeEach hook made this Vitest
-// version report the rejection as unhandled, even though useHealth catches
-// it (verified with isolated probes). Resetting in the test body avoids it.
-function mockHealth(impl) {
-  getHealth.mockClear();
-  getHealth.mockImplementation(impl);
-}
-const ok = (transactions = 'fallback') => () => Promise.resolve({ status: 'ok', database: 'connected', transactions });
-const fail = (status, message) => () =>
-  Promise.reject(new ApiError({ status, code: status === 503 ? 'DATABASE_UNAVAILABLE' : 'NETWORK_ERROR', message }));
-
-describe('Header API status indicator', () => {
-  it('shows "API online" when /api/health returns 200', async () => {
-    mockHealth(ok());
+describe('Header', () => {
+  it('shows the page title and subtitle', () => {
     render(<Header />);
-    expect(await screen.findByRole('button', { name: /^API online/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Front Desk Dashboard' })).toBeInTheDocument();
+    expect(screen.getByText('Room availability, bookings and maintenance management')).toBeInTheDocument();
   });
 
-  it('shows "Database offline" when /api/health returns 503', async () => {
-    mockHealth(fail(503, 'The API is running but cannot reach the database'));
+  it('has a notifications button', () => {
     render(<Header />);
-    expect(await screen.findByRole('button', { name: /^Database offline/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
   });
 
-  it('shows "API offline" when the server cannot be reached', async () => {
-    mockHealth(fail(0, 'Cannot reach the server'));
+  it('shows the staff chip from VITE_STAFF_NAME with initials', () => {
+    vi.stubEnv('VITE_STAFF_NAME', 'Asha Rao');
     render(<Header />);
-    expect(await screen.findByRole('button', { name: /^API offline/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('Signed in as Asha Rao')).toHaveTextContent('AR');
+    expect(screen.getByText('Asha Rao')).toBeInTheDocument();
+    expect(screen.getByText('Front Desk')).toBeInTheDocument();
   });
 
-  it('re-checks when clicked and reflects recovery', async () => {
-    let calls = 0;
-    mockHealth(() => (calls++ === 0 ? fail(0, 'down')() : ok('enabled')()));
+  it('falls back to "Front Desk" when no staff name is configured', () => {
+    vi.stubEnv('VITE_STAFF_NAME', '');
     render(<Header />);
-    fireEvent.click(await screen.findByRole('button', { name: /^API offline/ }));
-    await waitFor(() => expect(screen.getByRole('button', { name: /^API online/ })).toBeInTheDocument());
-    expect(getHealth).toHaveBeenCalledTimes(2);
+    expect(screen.getByLabelText('Signed in as Front Desk')).toHaveTextContent('FD');
   });
 
-  it('polls the backend on an interval', async () => {
-    vi.useFakeTimers();
-    try {
-      mockHealth(ok());
-      render(<Header />);
-      expect(getHealth).toHaveBeenCalledTimes(1);
-      await vi.advanceTimersByTimeAsync(15_000);
-      expect(getHealth).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
+  it('has no API status indicator', () => {
+    render(<Header />);
+    expect(screen.queryByText(/API online|API offline|Database offline/)).not.toBeInTheDocument();
   });
 });

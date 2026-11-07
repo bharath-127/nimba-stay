@@ -71,10 +71,10 @@ export default function MaintenanceBlocksCompact({ blocks = [], loading = false,
         ) : (
           <ul className="space-y-3" aria-label="Rooms out of service">
             {rows.map((b) => (
-              <li key={b.id} className="flex flex-col gap-3 rounded-xl border border-sand-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+              <li key={b.id} className="flex flex-col gap-3 rounded-xl border border-sand-200 bg-white p-4 shadow-[0_1px_2px_rgb(31_51_31/0.04)] sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-display text-lg font-semibold leading-none text-ink-900">{b.room?.roomNumber ?? '—'}</span>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="text-[1.05rem] font-bold leading-none tracking-tight text-ink-900">{b.room?.roomNumber ?? '—'}</span>
                     {b.room?.category && <Badge tone={categoryTone(b.room.category)}>{b.room.category}</Badge>}
                   </div>
                   <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-600">

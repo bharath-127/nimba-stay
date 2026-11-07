@@ -53,7 +53,7 @@ export function chipFor(booking, today) {
 export function StatusChip({ booking, today }) {
   const c = chipFor(booking, today);
   return (
-    <Badge tone={c.tone} icon={<Icon name={c.icon} className="h-3.5 w-3.5" strokeWidth={2.2} />} className="whitespace-nowrap">
+    <Badge tone={c.tone} icon={<Icon name={c.icon} className="h-3.5 w-3.5" strokeWidth={2.2} />} className="whitespace-nowrap px-2.5 py-1">
       {c.label}
     </Badge>
   );

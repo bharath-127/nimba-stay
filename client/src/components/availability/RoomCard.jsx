@@ -14,7 +14,11 @@ function AreaIcon({ className = 'h-4 w-4' }) {
   );
 }
 
-/** One available room as a list row with the server-computed price for the stay. */
+/**
+ * One available room as a list row: thumbnail, number + category, guests
+ * and area, then the server-computed pricing and Book Now. One row from
+ * `md` up; on phones the price block stacks under the room details.
+ */
 export default function RoomCard({ room, selected = false, onSelect, showCategory = true }) {
   const area = areaSqFt(room.category);
 
@@ -23,15 +27,15 @@ export default function RoomCard({ room, selected = false, onSelect, showCategor
       aria-selected={selected}
       className={`surface surface-interactive ${selected ? 'border-brand-500 ring-2 ring-brand-200' : ''}`}
     >
-      <div className="flex flex-col gap-4 p-3 sm:flex-row sm:items-center sm:gap-5 sm:p-4">
+      <div className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:gap-6">
         <div className="flex min-w-0 flex-1 items-center gap-4">
           <RoomThumbnail category={room.category} />
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-lg font-bold leading-tight text-ink-900">{room.roomNumber}</h3>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h3 className="text-[1.15rem] font-bold leading-tight tracking-tight text-ink-900">{room.roomNumber}</h3>
               {showCategory && <Badge tone={categoryTone(room.category)}>{room.category}</Badge>}
             </div>
-            <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-500">
+            <p className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-ink-600">
               <span className="inline-flex items-center gap-1.5">
                 <Icon name="user" className="h-4 w-4 text-ink-400" />
                 {pluralize(room.bedCount ?? 0, 'Guest')}
@@ -46,14 +50,14 @@ export default function RoomCard({ room, selected = false, onSelect, showCategor
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4 border-t divider-sand pt-3 sm:justify-end sm:gap-6 sm:border-0 sm:pt-0">
-          <div className="sm:text-right">
-            <p className="text-base leading-tight text-ink-900">
-              <span className="tnum font-bold">{formatINR(room.pricePerNight)}</span>{' '}
+        <div className="flex items-center justify-between gap-4 border-t divider-sand pt-4 md:justify-end md:gap-8 md:border-0 md:pt-0">
+          <div className="md:min-w-[8.5rem]">
+            <p className="leading-tight text-ink-900">
+              <span className="tnum text-lg font-bold">{formatINR(room.pricePerNight)}</span>{' '}
               <span className="text-sm text-ink-500">/ night</span>
             </p>
-            <p className="mt-0.5 text-xs text-ink-500">Total for {pluralize(room.nights, 'night')}</p>
-            <p className="tnum font-display text-2xl font-semibold leading-tight text-ink-900">{formatINR(room.totalPrice)}</p>
+            <p className="mt-1 text-xs text-ink-500">Total for {pluralize(room.nights, 'night')}</p>
+            <p className="tnum mt-0.5 text-[1.6rem] font-bold leading-none tracking-tight text-ink-900">{formatINR(room.totalPrice)}</p>
           </div>
           <Button
             variant={selected ? 'secondary' : 'primary'}
@@ -62,7 +66,7 @@ export default function RoomCard({ room, selected = false, onSelect, showCategor
             aria-pressed={selected}
             aria-haspopup="dialog"
             icon={<Icon name={selected ? 'check' : 'calendar'} className="h-4 w-4" strokeWidth={2} />}
-            className="shrink-0"
+            className="shrink-0 px-5"
           >
             {selected ? 'Selected' : 'Book Now'}
           </Button>

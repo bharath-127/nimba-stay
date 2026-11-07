@@ -89,13 +89,13 @@ export default function RecentBookingsCompact({ bookings = [], loading = false, 
             ) : (
               <tbody>
                 {rows.map((b) => (
-                  <tr key={b.id} className="border-t divider-sand align-top">
-                    <td className="break-words py-3 pr-3 font-medium text-ink-900">{b.guestName}</td>
-                    <td className="py-3 pr-3 text-ink-700">{b.room?.roomNumber ?? '—'}</td>
-                    <td className="hidden whitespace-nowrap py-3 pr-3 text-ink-700 sm:table-cell">
+                  <tr key={b.id} className="border-t divider-sand align-middle">
+                    <td className="break-words py-3.5 pr-3 font-semibold text-ink-900">{b.guestName}</td>
+                    <td className="py-3.5 pr-3 font-medium text-ink-700">{b.room?.roomNumber ?? '—'}</td>
+                    <td className="hidden whitespace-nowrap py-3.5 pr-3 text-ink-700 sm:table-cell">
                       {shortDate(b.checkIn)} – {shortDate(b.checkOut)}
                     </td>
-                    <td className="py-2.5">
+                    <td className="py-3">
                       <StatusChip booking={b} today={today} />
                     </td>
                   </tr>

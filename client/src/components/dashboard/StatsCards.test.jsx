@@ -18,29 +18,36 @@ const stats = {
   inHouseTonight: 1,
 };
 
+const range = { checkIn: '2026-11-21', checkOut: '2026-11-23' };
+
 describe('StatsCards', () => {
   it('renders the four figures exactly as returned by the API', () => {
-    render(<StatsCards stats={stats} loading={false} error={null} range={{ checkIn: '2026-11-21', checkOut: '2026-11-23' }} onRetry={() => {}} />);
+    render(<StatsCards stats={stats} loading={false} error={null} range={range} onRetry={() => {}} />);
     expect(screen.getByTestId('stat-total')).toHaveTextContent('10');
     expect(screen.getByTestId('stat-available')).toHaveTextContent('6');
     expect(screen.getByTestId('stat-maintenance')).toHaveTextContent('1');
     expect(screen.getByTestId('stat-confirmed')).toHaveTextContent('5');
+    expect(screen.getByText('Total Rooms')).toBeInTheDocument();
+    expect(screen.getByText('Available Rooms')).toBeInTheDocument();
+    expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Confirmed Bookings')).toBeInTheDocument();
     expect(screen.getByText('9 in service · 1 inactive')).toBeInTheDocument();
-    expect(screen.getByText('2 rooms occupied for these dates')).toBeInTheDocument();
-    expect(screen.getByText('3 current or upcoming stays · 1 in house tonight')).toBeInTheDocument();
+    expect(screen.getByText('2 occupied for these dates')).toBeInTheDocument();
+    expect(screen.getByText('(3 upcoming)')).toBeInTheDocument();
+    expect(screen.getByText('1 in house tonight')).toBeInTheDocument();
   });
 
-  it('describes the searched dates, and labels availability for them', () => {
-    render(<StatsCards stats={stats} loading={false} error={null} range={{ checkIn: '2026-11-21', checkOut: '2026-11-23' }} onRetry={() => {}} />);
+  it('describes the searched dates', () => {
+    render(<StatsCards stats={stats} loading={false} error={null} range={range} onRetry={() => {}} />);
     expect(screen.getByTestId('stats-range')).toHaveTextContent('Sat, 21 Nov 2026 → Mon, 23 Nov 2026 · 2 nights');
-    expect(screen.getByText('Available for these dates')).toBeInTheDocument();
+    expect(screen.getByText('Blocked for these dates')).toBeInTheDocument();
   });
 
   it('describes tonight before any search', () => {
     render(<StatsCards stats={{ ...stats, nights: 1 }} loading={false} error={null} range={null} onRetry={() => {}} />);
     expect(screen.getByTestId('stats-range')).toHaveTextContent('Tonight');
-    expect(screen.getByText('Available tonight')).toBeInTheDocument();
-    expect(screen.getByText('2 rooms occupied tonight')).toBeInTheDocument();
+    expect(screen.getByText('2 occupied tonight')).toBeInTheDocument();
+    expect(screen.getByText('Blocked tonight')).toBeInTheDocument();
   });
 
   it('shows skeletons on first load', () => {
@@ -50,7 +57,15 @@ describe('StatsCards', () => {
 
   it('shows an error with retry when the first load fails', () => {
     const onRetry = vi.fn();
-    render(<StatsCards stats={null} loading={false} error={new ApiError({ status: 0, code: 'NETWORK_ERROR', message: 'Cannot reach the server' })} range={null} onRetry={onRetry} />);
+    render(
+      <StatsCards
+        stats={null}
+        loading={false}
+        error={new ApiError({ status: 0, code: 'NETWORK_ERROR', message: 'Cannot reach the server' })}
+        range={null}
+        onRetry={onRetry}
+      />
+    );
     expect(screen.getByRole('alert')).toHaveTextContent(/could not load the property summary/i);
     fireEvent.click(screen.getByRole('button', { name: /try again/i }));
     expect(onRetry).toHaveBeenCalled();

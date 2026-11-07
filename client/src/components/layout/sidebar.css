@@ -1,0 +1,34 @@
+/* Sidebar nature scene — pure CSS + inline SVG, no image assets. */
+
+.sidebar-scene {
+  background:
+    radial-gradient(420px 220px at 20% 0%, rgb(255 255 255 / 0.9), transparent 70%),
+    linear-gradient(180deg, #f7f9f2 0%, #eef4e6 38%, #d9e7cc 62%, #a9c89a 82%, #6f9c66 100%);
+}
+
+.sidebar-scene__art {
+  position: absolute;
+  inset-x: 0;
+  bottom: 0;
+  width: 100%;
+  height: auto;
+  display: block;
+  pointer-events: none;
+}
+
+.sidebar-scene__leaf {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+/* On small screens the sidebar is a strip: keep the gradient, hide the scene. */
+@media (max-width: 1023px) {
+  .sidebar-scene {
+    background: linear-gradient(90deg, #f7f9f2 0%, #e7efdd 100%);
+  }
+  .sidebar-scene__art,
+  .sidebar-scene__leaf {
+    display: none;
+  }
+}

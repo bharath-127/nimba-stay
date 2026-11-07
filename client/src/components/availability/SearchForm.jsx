@@ -7,11 +7,20 @@ import { addDays, countNights } from '../../utils/dates.js';
 import { validateSearch, hasErrors } from '../../utils/validation.js';
 import { formatINR, pluralize } from '../../utils/format.js';
 
+const Required = ({ children }) => (
+  <>
+    {children}{' '}
+    <span aria-hidden="true" className="text-red-500">
+      *
+    </span>
+  </>
+);
+
 /**
- * The booking bar: check-in · check-out · category · search.
- * A single horizontal row from `lg` up, stacked on phones. Validates locally
- * for instant feedback, then hands the params to the parent, which calls the
- * API. `categories` are room types from the API: `{ name, pricePerNight }`.
+ * Check-in · check-out · category · search, one row from `lg` up and
+ * stacked on phones. Validates locally for instant feedback, then hands
+ * the params to the parent, which calls the API. `categories` are room
+ * types from the API: `{ name, pricePerNight }`.
  */
 export default function SearchForm({ initialValues, categories, categoriesLoading, loading, onSearch }) {
   const [values, setValues] = useState(initialValues);
@@ -42,11 +51,11 @@ export default function SearchForm({ initialValues, categories, categoriesLoadin
       onSubmit={handleSubmit}
       noValidate
       aria-label="Search availability"
-      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.15fr)_auto] lg:items-start"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto] lg:items-start"
     >
       <Input
         id="checkIn"
-        label="Check-in"
+        label={<Required>Check-in Date</Required>}
         type="date"
         variant="hero"
         leading={<Icon name="calendar" className="h-4 w-4" />}
@@ -57,7 +66,7 @@ export default function SearchForm({ initialValues, categories, categoriesLoadin
       />
       <Input
         id="checkOut"
-        label="Check-out"
+        label={<Required>Check-out Date</Required>}
         type="date"
         variant="hero"
         leading={<Icon name="calendar" className="h-4 w-4" />}
@@ -70,7 +79,7 @@ export default function SearchForm({ initialValues, categories, categoriesLoadin
       />
       <Select
         id="category"
-        label="Room category"
+        label="Room Category"
         variant="hero"
         value={values.category}
         onChange={update('category')}
@@ -91,9 +100,9 @@ export default function SearchForm({ initialValues, categories, categoriesLoadin
           size="xl"
           loading={loading}
           icon={<Icon name="search" className="h-5 w-5" strokeWidth={2} />}
-          className="w-full lg:w-auto lg:min-w-[13.5rem]"
+          className="w-full lg:w-auto lg:min-w-[12.5rem]"
         >
-          {loading ? 'Searching…' : 'Search availability'}
+          {loading ? 'Searching…' : 'Search Availability'}
         </Button>
       </div>
     </form>

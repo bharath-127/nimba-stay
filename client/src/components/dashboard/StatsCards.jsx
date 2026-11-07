@@ -5,10 +5,9 @@ import { formatDisplayDate } from '../../utils/dates.js';
 import { pluralize } from '../../utils/format.js';
 
 const tones = {
-  brand: { chip: 'bg-brand-100 text-brand-700', accent: 'from-brand-400/70' },
-  green: { chip: 'bg-sage-200 text-brand-800', accent: 'from-brand-500/70' },
-  amber: { chip: 'bg-amber-100 text-amber-700', accent: 'from-amber-400/70' },
-  sky: { chip: 'bg-sky-100 text-sky-700', accent: 'from-sky-400/70' },
+  green: { card: 'from-brand-50 to-white border-brand-100', tile: 'bg-brand-100 text-brand-700' },
+  amber: { card: 'from-amber-50 to-white border-amber-100', tile: 'bg-amber-100 text-amber-700' },
+  sky: { card: 'from-sky-50 to-white border-sky-100', tile: 'bg-sky-100 text-sky-700' },
 };
 
 /** "Tonight" or "Sat, 21 Nov → Sun, 22 Nov · 1 night" */
@@ -22,33 +21,34 @@ function buildItems(s, range) {
   return [
     {
       key: 'total',
-      label: 'Total rooms',
+      label: 'Total Rooms',
       value: s.totalRooms,
       hint: s.inactiveRooms > 0 ? `${s.activeRooms} in service · ${s.inactiveRooms} inactive` : `${s.activeRooms} in service`,
-      icon: 'building',
-      tone: 'brand',
+      icon: 'bed',
+      tone: 'green',
     },
     {
       key: 'available',
-      label: range ? 'Available for these dates' : 'Available tonight',
+      label: 'Available Rooms',
       value: s.availableRooms,
-      hint: `${pluralize(s.occupiedRooms, 'room')} occupied ${when}`,
-      icon: 'checkCircle',
+      hint: `${s.occupiedRooms} occupied ${when}`,
+      icon: 'building',
       tone: 'green',
     },
     {
       key: 'maintenance',
-      label: 'Out of service',
+      label: 'Maintenance',
       value: s.maintenanceRooms,
-      hint: s.maintenanceRooms > 0 ? `Blocked ${when}` : `No rooms blocked ${when}`,
+      hint: s.maintenanceRooms > 0 ? `Blocked ${when}` : `None blocked ${when}`,
       icon: 'wrench',
       tone: 'amber',
     },
     {
       key: 'confirmed',
-      label: 'Confirmed bookings',
+      label: 'Confirmed Bookings',
       value: s.confirmedBookings,
-      hint: `${pluralize(s.currentOrUpcomingBookings, 'current or upcoming stay', 'current or upcoming stays')} · ${s.inHouseTonight} in house tonight`,
+      suffix: `(${s.currentOrUpcomingBookings} upcoming)`,
+      hint: `${s.inHouseTonight} in house tonight`,
       icon: 'calendar',
       tone: 'sky',
     },
@@ -57,26 +57,25 @@ function buildItems(s, range) {
 
 function StatSkeleton() {
   return (
-    <div className="surface p-5" aria-hidden="true">
-      <div className="flex items-start justify-between">
+    <div className="surface flex items-center gap-4 p-4" aria-hidden="true">
+      <div className="skeleton h-14 w-14 shrink-0 rounded-xl" />
+      <div className="flex-1">
         <div className="skeleton h-3 w-24 rounded" />
-        <div className="skeleton h-9 w-9 rounded-xl" />
+        <div className="skeleton mt-3 h-7 w-12 rounded" />
       </div>
-      <div className="skeleton mt-4 h-8 w-14 rounded" />
-      <div className="skeleton mt-2 h-3 w-32 rounded" />
     </div>
   );
 }
 
 /**
- * Four compact property-summary cards for the searched dates (or tonight
- * before a search). Every number comes from GET /api/stats; nothing is
- * computed or hardcoded on the client.
+ * Four summary cards — tinted icon tile on the left, label and figure on
+ * the right — for the searched dates (tonight before a search). Every
+ * number comes from GET /api/stats; nothing is computed or hardcoded here.
  */
 export default function StatsCards({ stats, loading, error, range, onRetry }) {
   if (!stats && loading) {
     return (
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4" aria-busy="true" aria-label="Loading property summary">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" aria-busy="true" aria-label="Loading property summary">
         <StatSkeleton />
         <StatSkeleton />
         <StatSkeleton />
@@ -105,22 +104,20 @@ export default function StatsCards({ stats, loading, error, range, onRetry }) {
 
   return (
     <section aria-label="Property summary">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500">
-          Summary ·{' '}
-          <span className="normal-case tracking-normal text-ink-700" data-testid="stats-range">
-            {describeRange(stats, range)}
-          </span>
-        </p>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500">
+        Summary ·{' '}
+        <span className="normal-case tracking-normal text-ink-700" data-testid="stats-range">
+          {describeRange(stats, range)}
+        </span>
         {loading && (
-          <span className="text-xs text-ink-400" aria-hidden="true">
+          <span className="ml-2 normal-case tracking-normal text-ink-400" aria-hidden="true">
             Updating…
           </span>
         )}
-      </div>
+      </p>
 
       <dl
-        className={`grid grid-cols-2 gap-3 transition-opacity duration-200 sm:gap-4 lg:grid-cols-4 ${loading ? 'opacity-70' : ''}`}
+        className={`grid grid-cols-2 gap-3 transition-opacity duration-200 sm:gap-4 xl:grid-cols-4 ${loading ? 'opacity-70' : ''}`}
         aria-busy={loading || undefined}
       >
         {buildItems(stats, range).map((item, i) => {
@@ -128,24 +125,23 @@ export default function StatsCards({ stats, loading, error, range, onRetry }) {
           return (
             <div
               key={item.key}
-              className={`surface relative overflow-hidden p-4 sm:p-5 rise-in rise-in-delay-${Math.min(i, 3)}`}
+              className={`flex items-center gap-3 rounded-[var(--radius-xl2)] border bg-gradient-to-br p-3.5 shadow-[var(--shadow-card)] sm:gap-4 sm:p-4 rise-in rise-in-delay-${Math.min(i, 3)} ${t.card}`}
             >
-              <span className={`pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${t.accent} to-transparent`} aria-hidden="true" />
-              <dt className="flex items-start justify-between gap-3">
-                <span className="text-xs font-medium text-ink-500 sm:text-sm">{item.label}</span>
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${t.chip}`} aria-hidden="true">
-                  <Icon name={item.icon} className="h-[18px] w-[18px]" />
-                </span>
-              </dt>
-              <dd className="mt-2">
-                <span
-                  className="block font-display text-3xl font-semibold leading-none text-ink-900 tnum sm:text-[2.25rem]"
-                  data-testid={`stat-${item.key}`}
-                >
-                  {item.value}
-                </span>
-                <span className="mt-2 block text-xs text-ink-500">{item.hint}</span>
-              </dd>
+              <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl sm:h-14 sm:w-14 ${t.tile}`} aria-hidden="true">
+                <Icon name={item.icon} className="h-6 w-6 sm:h-7 sm:w-7" />
+              </span>
+              <div className="min-w-0">
+                <dt className="truncate text-sm font-medium text-ink-700">{item.label}</dt>
+                <dd className="mt-0.5">
+                  <span className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="font-display text-[1.75rem] font-semibold leading-none text-ink-900 tnum sm:text-[2rem]" data-testid={`stat-${item.key}`}>
+                      {item.value}
+                    </span>
+                    {item.suffix && <span className="text-xs text-ink-500">{item.suffix}</span>}
+                  </span>
+                  <span className="mt-1 block truncate text-xs text-ink-500">{item.hint}</span>
+                </dd>
+              </div>
             </div>
           );
         })}
@@ -154,7 +150,7 @@ export default function StatsCards({ stats, loading, error, range, onRetry }) {
       {error && (
         <p className="mt-2 text-xs text-red-600" role="alert">
           Summary could not be refreshed: {error.message}{' '}
-          <button type="button" className="font-medium underline underline-offset-2 focus-ring rounded" onClick={onRetry}>
+          <button type="button" className="rounded font-medium underline underline-offset-2 focus-ring" onClick={onRetry}>
             Retry
           </button>
         </p>

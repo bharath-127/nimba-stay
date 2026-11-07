@@ -1,62 +1,68 @@
 import RoomCard from './RoomCard.jsx';
 import Alert from '../ui/Alert.jsx';
-import Badge, { categoryTone } from '../ui/Badge.jsx';
 import Button from '../ui/Button.jsx';
 import EmptyState from '../ui/EmptyState.jsx';
 import Icon from '../ui/Icon.jsx';
 import { formatDisplayDate } from '../../utils/dates.js';
-import { formatINR, pluralize } from '../../utils/format.js';
+import { pluralize } from '../../utils/format.js';
 
-const rule = {
-  Standard: 'bg-cat-standard/40',
-  Deluxe: 'bg-cat-deluxe/40',
-  Premium: 'bg-cat-premium/40',
-  Suite: 'bg-cat-suite/50',
-};
+/** "10 Nov 2026" — the card subtitle reads better without the weekday. */
+const shortDate = (iso) => formatDisplayDate(iso).replace(/^\w{3}, /, '');
 
 function SkeletonRow() {
   return (
-    <div className="surface flex items-center justify-between p-5" aria-hidden="true">
-      <div className="space-y-2.5">
-        <div className="skeleton h-5 w-36 rounded-md" />
-        <div className="skeleton h-3.5 w-56 rounded-md" />
+    <div className="surface flex items-center gap-4 p-4" aria-hidden="true">
+      <div className="skeleton h-20 w-[7.5rem] shrink-0 rounded-xl" />
+      <div className="flex-1 space-y-2.5">
+        <div className="skeleton h-5 w-32 rounded-md" />
+        <div className="skeleton h-3.5 w-48 rounded-md" />
       </div>
-      <div className="flex items-center gap-5">
-        <div className="skeleton h-7 w-20 rounded-md" />
-        <div className="skeleton h-11 w-28 rounded-lg" />
+      <div className="hidden items-center gap-5 sm:flex">
+        <div className="skeleton h-9 w-24 rounded-md" />
+        <div className="skeleton h-11 w-32 rounded-lg" />
       </div>
     </div>
   );
 }
 
 /**
- * Renders the availability search result in every state: idle, loading,
- * error, empty and populated. Rooms are grouped by category, most
- * expensive first, exactly as the API returns them.
+ * The "Available Rooms" card. Renders its own surface and header so the
+ * page can drop it in directly. Rows are a flat list in the order the API
+ * returns them (category groups, most expensive first), each with a
+ * category badge. Covers idle, loading, error, empty and populated states.
  */
 export default function RoomList({ status, data, error, selectedRoomId, onSelect, onRetry }) {
+  const success = status === 'success' && data;
+  const nights = success ? data.nights : null;
+
+  let subtitle = 'Search above to see which rooms are free';
+  if (status === 'loading') subtitle = 'Checking every night of the stay…';
+  if (status === 'error') subtitle = 'Availability could not be loaded';
+  if (success) {
+    subtitle = `${pluralize(data.rooms.length, 'room')} available · ${pluralize(nights, 'night')} (${shortDate(data.checkIn)} – ${shortDate(
+      data.checkOut
+    )})${data.category ? ` · ${data.category}` : ''}`;
+  }
+
+  let body;
   if (status === 'idle') {
-    return (
+    body = (
       <EmptyState
         title="Your free rooms will appear here"
         description="Pick check-in and check-out dates above, optionally a category, and search. Only rooms free for every night of the stay are shown."
       />
     );
-  }
-
-  if (status === 'loading') {
-    return (
+  } else if (status === 'loading') {
+    body = (
       <div className="space-y-3" aria-busy="true" aria-live="polite">
-        <p className="text-sm text-ink-500">Checking every night of the stay…</p>
+        <p className="sr-only">Checking availability</p>
         <SkeletonRow />
         <SkeletonRow />
         <SkeletonRow />
       </div>
     );
-  }
-
-  if (status === 'error') {
-    return (
+  } else if (status === 'error') {
+    body = (
       <Alert
         tone="error"
         title={error?.isNetworkError ? 'Cannot reach the server' : 'Could not load availability'}
@@ -69,60 +75,46 @@ export default function RoomList({ status, data, error, selectedRoomId, onSelect
         {error?.message}
       </Alert>
     );
-  }
-
-  const { rooms, groups = [], nights, checkIn, checkOut, category } = data;
-  const dates = `${formatDisplayDate(checkIn)} → ${formatDisplayDate(checkOut)}`;
-  const summary = `${dates} · ${pluralize(nights, 'night')}${category ? ` · ${category}` : ''}`;
-
-  if (rooms.length === 0) {
-    return (
+  } else if (data.rooms.length === 0) {
+    body = (
       <EmptyState
         title="No rooms free for these dates"
-        description={`${summary}. Try shifting the dates by a day or widening the category.`}
+        description={`${shortDate(data.checkIn)} – ${shortDate(data.checkOut)}${data.category ? ` · ${data.category}` : ''}. Try shifting the dates by a day or widening the category.`}
       />
+    );
+  } else {
+    body = (
+      <ul className="space-y-3" aria-live="polite" aria-label="Available rooms">
+        {data.rooms.map((room, i) => (
+          <li key={room.id} className={`rise-in ${i > 0 ? `rise-in-delay-${Math.min(i, 3)}` : ''}`}>
+            <RoomCard room={room} selected={room.id === selectedRoomId} onSelect={onSelect} />
+          </li>
+        ))}
+      </ul>
     );
   }
 
   return (
-    <div className="space-y-7" aria-live="polite">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <p className="text-sm text-ink-600">
-          <span className="font-display text-lg font-semibold text-ink-900">{pluralize(rooms.length, 'room')}</span>{' '}
-          <span className="text-ink-500">available</span>
-        </p>
-        <p className="flex items-center gap-1.5 text-sm text-ink-500">
-          <Icon name="calendar" className="h-4 w-4 text-ink-400" />
-          {summary}
-        </p>
-      </div>
-
-      {groups.map((group, gi) => (
-        <section
-          key={group.category}
-          aria-labelledby={`group-${group.category}`}
-          className={`space-y-3 rise-in ${gi > 0 ? `rise-in-delay-${Math.min(gi, 3)}` : ''}`}
-        >
-          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-            <h3 id={`group-${group.category}`} className="flex items-center gap-2.5">
-              <Badge tone={categoryTone(group.category)}>{group.category}</Badge>
-              <span className="text-sm text-ink-500">{pluralize(group.count, 'room')}</span>
-            </h3>
-            <p className="tnum text-sm text-ink-500">
-              {formatINR(group.pricePerNight)} per night ·{' '}
-              <span className="font-medium text-ink-800">{formatINR(group.totalPrice)}</span> for the stay
-            </p>
+    <section className="surface" aria-labelledby="available-rooms-title">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b divider-sand px-5 py-4 sm:px-6">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-700" aria-hidden="true">
+            <Icon name="bed" className="h-6 w-6" />
+          </span>
+          <div className="min-w-0">
+            <h2 id="available-rooms-title" className="font-display text-xl font-semibold leading-tight text-ink-900">
+              Available Rooms
+            </h2>
+            <p className="mt-0.5 text-sm text-ink-500">{subtitle}</p>
           </div>
-          <div className={`h-px w-full ${rule[group.category] ?? 'bg-sand-200'}`} aria-hidden="true" />
-          <ul className="space-y-3">
-            {group.rooms.map((room) => (
-              <li key={room.id}>
-                <RoomCard room={room} selected={room.id === selectedRoomId} onSelect={onSelect} showCategory={false} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
+        </div>
+        {success && (
+          <span className="tnum inline-flex items-center rounded-lg bg-brand-100 px-3 py-1.5 text-sm font-semibold text-brand-800">
+            {pluralize(nights, 'night')}
+          </span>
+        )}
+      </header>
+      <div className="p-4 sm:p-5">{body}</div>
+    </section>
   );
 }

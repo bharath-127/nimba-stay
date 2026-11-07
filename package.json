@@ -1,0 +1,19 @@
+{
+  "name": "nimba-stay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Nimba Stay — room availability and booking system for Nimba Nature Cure front-desk staff",
+  "scripts": {
+    "install:all": "npm install && npm install --prefix server && npm install --prefix client",
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "seed": "npm run seed --prefix server",
+    "test": "npm test --prefix server && npm test --prefix client",
+    "test:server": "npm test --prefix server",
+    "test:client": "npm test --prefix client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

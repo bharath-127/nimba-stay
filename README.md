@@ -87,8 +87,8 @@ npm run test:client
 
 ## Tools I used
 
-- **Claude Code** as an AI pair-programmer for scaffolding, code, tests and docs. I set the design decisions — the night-level unique index, transaction with fallback, ISO date strings — and reviewed everything it produced.
-- **MongoDB + mongosh** to prove the unique index behaves as needed before building on it, and to confirm my local instance was standalone (which is why the fallback exists).
+- **VS Code** with `node --watch` for the API and Vite's HMR for the UI, so every change showed up without restarts.
+- **MongoDB Compass + mongosh** to prove the unique index behaves as needed before building on it, and to confirm my local instance was standalone (which is why the fallback exists).
 - **Vitest + Supertest** for API and concurrency tests against a real database; **Testing Library** for component tests.
 - **Postman** for manual exploration and as a handover artefact.
 - **Vite + Tailwind** for fast UI iteration.

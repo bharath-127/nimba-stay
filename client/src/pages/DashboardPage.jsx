@@ -51,14 +51,15 @@ export default function DashboardPage() {
   }, [selectedRoom]);
 
   const handleSubmitBooking = async (payload) => {
-    const booking = await createBooking.submit(payload);
-    if (booking) {
+    const result = await createBooking.submit(payload);
+    if (result.ok) {
       setSelectedRoom(null);
       // The room is now taken for these dates: refresh so it disappears from the list.
       availability.refresh();
       recent.refresh();
-    } else if (createBooking.error?.isConflict) {
-      // Someone else got the room between search and confirm — re-sync the list.
+    } else if (result.error?.isConflict) {
+      // Someone else got the room between search and confirm — re-sync the list
+      // right away so the stale room disappears; the form keeps the conflict banner.
       availability.refresh();
     }
   };

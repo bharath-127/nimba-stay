@@ -1,0 +1,179 @@
+{
+  "info": {
+    "name": "Nimba Stay API",
+    "description": "Front-desk room availability and booking API for Nimba Nature Cure.\n\nSet `baseUrl` (default http://localhost:5000/api). Run **Availability → Deluxe rooms** first: it stores the first free room's id in `roomId`, which the booking requests use. Send **Create booking → 201** twice to see the 409 conflict.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api" },
+    { "key": "roomId", "value": "" },
+    { "key": "bookingId", "value": "" },
+    { "key": "maintenanceRoomId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/health" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 ok', () => pm.response.to.have.status(200));",
+        "pm.test('reports transaction mode', () => pm.expect(pm.response.json().data.transactions).to.be.oneOf(['enabled','fallback']));"
+      ] } }]
+    },
+    {
+      "name": "Rooms → categories",
+      "request": { "method": "GET", "url": "{{baseUrl}}/rooms/categories" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 with 4 categories', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data).to.have.length(4); });"
+      ] } }]
+    },
+    {
+      "name": "Availability → Deluxe rooms (stores roomId)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/availability?checkIn=2026-11-20&checkOut=2026-11-23&category=Deluxe",
+          "host": ["{{baseUrl}}"], "path": ["availability"],
+          "query": [
+            { "key": "checkIn", "value": "2026-11-20" },
+            { "key": "checkOut", "value": "2026-11-23" },
+            { "key": "category", "value": "Deluxe" }
+          ]
+        }
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200 ok', () => pm.response.to.have.status(200));",
+        "const data = pm.response.json().data;",
+        "pm.test('3 nights, price = nights x rate', () => { pm.expect(data.nights).to.eql(3); data.rooms.forEach(r => pm.expect(r.totalPrice).to.eql(r.pricePerNight * 3)); });",
+        "pm.test('maintenance room DLX-203 is never listed', () => pm.expect(data.rooms.map(r => r.roomNumber)).to.not.include('DLX-203'));",
+        "if (data.rooms.length) pm.collectionVariables.set('roomId', data.rooms[0].id);"
+      ] } }]
+    },
+    {
+      "name": "Availability → all categories",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/availability?checkIn=2026-11-20&checkOut=2026-11-21",
+          "host": ["{{baseUrl}}"], "path": ["availability"],
+          "query": [ { "key": "checkIn", "value": "2026-11-20" }, { "key": "checkOut", "value": "2026-11-21" } ]
+        }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 ok', () => pm.response.to.have.status(200));"] } }]
+    },
+    {
+      "name": "Availability → 400 check-out not after check-in",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/availability?checkIn=2026-11-20&checkOut=2026-11-20",
+          "host": ["{{baseUrl}}"], "path": ["availability"],
+          "query": [ { "key": "checkIn", "value": "2026-11-20" }, { "key": "checkOut", "value": "2026-11-20" } ]
+        }
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('400 VALIDATION_ERROR', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'); });"
+      ] } }]
+    },
+    {
+      "name": "Availability → 400 invalid date",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/availability?checkIn=2026-02-30&checkOut=2026-03-02",
+          "host": ["{{baseUrl}}"], "path": ["availability"],
+          "query": [ { "key": "checkIn", "value": "2026-02-30" }, { "key": "checkOut", "value": "2026-03-02" } ]
+        }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('400', () => pm.response.to.have.status(400));"] } }]
+    },
+    {
+      "name": "Availability → 400 unknown category",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/availability?checkIn=2026-11-20&checkOut=2026-11-21&category=Penthouse",
+          "host": ["{{baseUrl}}"], "path": ["availability"],
+          "query": [ { "key": "checkIn", "value": "2026-11-20" }, { "key": "checkOut", "value": "2026-11-21" }, { "key": "category", "value": "Penthouse" } ]
+        }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('400', () => pm.response.to.have.status(400));"] } }]
+    },
+    {
+      "name": "Create booking → 201 (send twice for 409)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/bookings",
+        "body": { "mode": "raw", "raw": "{\n  \"roomId\": \"{{roomId}}\",\n  \"guestName\": \"Asha Mehta\",\n  \"phone\": \"9876543210\",\n  \"checkIn\": \"2026-11-20\",\n  \"checkOut\": \"2026-11-23\"\n}" }
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('201 created or 409 if already booked', () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));",
+        "if (pm.response.code === 201) {",
+        "  const b = pm.response.json().data;",
+        "  pm.test('server computed the total', () => pm.expect(b.totalPrice).to.eql(b.pricePerNight * b.nights));",
+        "  pm.test('status confirmed', () => pm.expect(b.status).to.eql('confirmed'));",
+        "  pm.collectionVariables.set('bookingId', b.id);",
+        "} else {",
+        "  pm.test('409 ROOM_ALREADY_BOOKED', () => pm.expect(pm.response.json().error.code).to.eql('ROOM_ALREADY_BOOKED'));",
+        "}"
+      ] } }]
+    },
+    {
+      "name": "Create booking → 201 check-in on previous check-out day (rule 1)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/bookings",
+        "body": { "mode": "raw", "raw": "{\n  \"roomId\": \"{{roomId}}\",\n  \"guestName\": \"Ravi Patel\",\n  \"phone\": \"9123456780\",\n  \"checkIn\": \"2026-11-23\",\n  \"checkOut\": \"2026-11-25\"\n}" }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('201 or 409 on re-run', () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));"] } }]
+    },
+    {
+      "name": "Create booking → 400 phone not 10 digits",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/bookings",
+        "body": { "mode": "raw", "raw": "{\n  \"roomId\": \"{{roomId}}\",\n  \"guestName\": \"Asha Mehta\",\n  \"phone\": \"98765\",\n  \"checkIn\": \"2026-12-01\",\n  \"checkOut\": \"2026-12-03\"\n}" }
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('400 on phone', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().error.details.map(d => d.field)).to.include('phone'); });"
+      ] } }]
+    },
+    {
+      "name": "Create booking → 400 check-out before check-in",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/bookings",
+        "body": { "mode": "raw", "raw": "{\n  \"roomId\": \"{{roomId}}\",\n  \"guestName\": \"Asha Mehta\",\n  \"phone\": \"9876543210\",\n  \"checkIn\": \"2026-12-05\",\n  \"checkOut\": \"2026-12-03\"\n}" }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('400', () => pm.response.to.have.status(400));"] } }]
+    },
+    {
+      "name": "Create booking → 404 unknown room",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/bookings",
+        "body": { "mode": "raw", "raw": "{\n  \"roomId\": \"64b000000000000000000000\",\n  \"guestName\": \"Asha Mehta\",\n  \"phone\": \"9876543210\",\n  \"checkIn\": \"2026-12-01\",\n  \"checkOut\": \"2026-12-03\"\n}" }
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('404 ROOM_NOT_FOUND', () => { pm.response.to.have.status(404); pm.expect(pm.response.json().error.code).to.eql('ROOM_NOT_FOUND'); });"] } }]
+    },
+    {
+      "name": "Bookings → list",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/bookings?limit=10", "host": ["{{baseUrl}}"], "path": ["bookings"], "query": [{ "key": "limit", "value": "10" }] } },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 array', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data).to.be.an('array'); });"] } }]
+    },
+    {
+      "name": "Bookings → cancel (frees the nights)",
+      "request": { "method": "PATCH", "url": "{{baseUrl}}/bookings/{{bookingId}}/cancel" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 cancelled', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data.status).to.eql('cancelled'); });"] } }]
+    },
+    {
+      "name": "Bookings → 404 cancel unknown",
+      "request": { "method": "PATCH", "url": "{{baseUrl}}/bookings/64b000000000000000000000/cancel" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('404', () => pm.response.to.have.status(404));"] } }]
+    }
+  ]
+}

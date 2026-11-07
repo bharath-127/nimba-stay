@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Badge from '../ui/Badge.jsx';
 import Button from '../ui/Button.jsx';
 import Alert from '../ui/Alert.jsx';
@@ -5,18 +6,36 @@ import Spinner from '../ui/Spinner.jsx';
 import { formatDisplayDate, formatTimestamp } from '../../utils/dates.js';
 import { formatINR } from '../../utils/format.js';
 
+/** Two-step inline confirmation — no native dialog, keyboard and screen-reader friendly. */
+function CancelAction({ booking, busy, onConfirm }) {
+  const [confirming, setConfirming] = useState(false);
+
+  if (!confirming) {
+    return (
+      <Button variant="danger" size="sm" onClick={() => setConfirming(true)} aria-label={`Cancel booking for ${booking.guestName}`}>
+        Cancel
+      </Button>
+    );
+  }
+  return (
+    <div className="flex items-center justify-end gap-2" role="group" aria-label="Confirm cancellation">
+      <span className="text-xs text-slate-500">Free the room?</span>
+      <Button variant="danger" size="sm" loading={busy} onClick={() => onConfirm(booking.id)}>
+        Yes, cancel
+      </Button>
+      <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirming(false)}>
+        Keep
+      </Button>
+    </div>
+  );
+}
+
 /**
  * Latest bookings with a cancel action. Cancelling releases the room's
  * nights on the server, which is how "cancelled bookings block nothing"
  * becomes visible on the availability screen.
  */
 export default function RecentBookings({ bookings, loading, error, cancellingId, cancelError, onCancel, onRefresh }) {
-  const handleCancel = (booking) => {
-    const ok = window.confirm(
-      `Cancel the booking for ${booking.guestName} in room ${booking.room?.roomNumber} (${formatDisplayDate(booking.checkIn)} → ${formatDisplayDate(booking.checkOut)})?\n\nThe room will become available again for these dates.`
-    );
-    if (ok) onCancel(booking.id);
-  };
 
   if (error) {
     return (
@@ -81,11 +100,7 @@ export default function RecentBookings({ bookings, loading, error, cancellingId,
                   </td>
                   <td className="py-3 pr-4 text-xs text-slate-500 whitespace-nowrap">{formatTimestamp(b.createdAt)}</td>
                   <td className="py-3 text-right">
-                    {!cancelled && (
-                      <Button variant="danger" size="sm" loading={cancellingId === b.id} onClick={() => handleCancel(b)}>
-                        Cancel
-                      </Button>
-                    )}
+                    {!cancelled && <CancelAction booking={b} busy={cancellingId === b.id} onConfirm={onCancel} />}
                   </td>
                 </tr>
               );

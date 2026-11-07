@@ -59,12 +59,14 @@ And one requirement that is easy to get subtly wrong: two simultaneous requests 
 ## 3. Features
 
 **Front desk screen**
+- Property summary cards — total rooms, available tonight, under maintenance, confirmed bookings — all from `GET /api/stats`, refreshed after every booking and cancellation
 - Check-in / check-out date pickers with instant validation (check-out must be after check-in, max 90 nights)
 - Category filter populated from the API (nothing hardcoded in the UI)
 - Available rooms with nightly rate, number of nights, total stay price and availability badge
-- Guest form (full name, 10-digit mobile) showing the selected room, dates and total booking amount
+- **Book now** opens an accessible side panel (full-screen on phones): guest details → **review** of guest, room, dates and total → confirm. Nothing is sent until the review is confirmed; a 409 replaces *Confirm* with *Choose another room*
 - Booking confirmation with reference, guest, room, dates, nights and total
-- Recent bookings table with a two-step inline **Cancel** that frees the room's nights
+- Recent bookings with status badges (icon + colour + text) and a stay phase (*Upcoming* / *In-house* / *Checked out*), a table on desktop and cards on phones, and a two-step inline **Cancel** that frees the room's nights
+- Live API indicator in the header: *API online* / *Database offline* / *API offline*, re-checked every 15 s, on tab focus, on reconnect and on click
 - Loading skeletons, empty states, field-level validation errors, API error banners, conflict banner with a *Refresh availability* action, network-failure handling, double-submit protection, automatic list refresh after booking / cancelling
 - Responsive layout, accessible labelled inputs, `aria-live` regions, keyboard-navigable
 
@@ -222,7 +224,8 @@ Success: `{ "success": true, "data": … }` · Failure: `{ "success": false, "er
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/health` | liveness + transaction mode (`enabled` / `fallback`) |
+| GET | `/health` | `200` when the API **and** MongoDB are up (with transaction mode); `503 DATABASE_UNAVAILABLE` when the database is unreachable |
+| GET | `/stats?date=YYYY-MM-DD` | dashboard summary for a day (default today): `totalRooms`, `activeRooms`, `maintenanceRooms`, `availableTonight`, `occupiedTonight`, `confirmedBookings`, `currentOrUpcomingBookings`. *Available tonight* reuses the availability query for `[date, date+1)`, so it always agrees with a search |
 | GET | `/rooms/categories` | the four room categories |
 | GET | `/availability?checkIn=&checkOut=&category=` | free rooms with total price |
 | POST | `/bookings` | create a booking |
@@ -382,7 +385,7 @@ npm run test:server          # Vitest + Supertest against MONGO_URI_TEST
 npm run test:client          # Vitest + Testing Library (jsdom)
 ```
 
-### Server — 80 tests, 6 files (all passing)
+### Server — 89 tests, 8 files (all passing)
 
 | File | Covers |
 |---|---|
@@ -391,18 +394,20 @@ npm run test:client          # Vitest + Testing Library (jsdom)
 | `integration/availability.test.js` | valid / same-day / inverted / invalid / missing dates → 400; unknown category → 400; > 90 nights → 400; maintenance excluded (Rule 3); category filter; price computation; room blocked for identical / partial / inside / containing ranges; later-night clash still blocks (not first-night-only); **check-out day free (Rule 1)**; **cancelled booking blocks nothing (Rule 2)** |
 | `integration/bookings.test.js` | 201 shape; one `RoomNight` per night; **client-supplied price ignored (Rule 9)**; phone 9 / 11 digits, letters, spaces, country code, empty, missing → 400 (Rule 5); same-day, inverted, invalid, missing dates → 400 (Rule 4); short/blank name → 400; malformed id → 400; unknown room → 404; malformed JSON → 400; conflicts for same / partial / inside / containing → 409 (Rule 6) with no partial data; Rule 1 both directions → 201; cancelled then re-book → 201; maintenance → 409; different room same dates → 201; list ordering and limit validation |
 | `integration/cancel.test.js` | nights released, room bookable again, idempotent, 404, 400 |
+| `integration/stats.test.js` | summary from seeded data; a stay covering tonight; check-out today does not occupy tonight (Rule 1); cancel releases the night (Rule 2); maintenance counted and excluded (Rule 3); default date; invalid date → 400 |
+| `integration/health.test.js` | 200 with database connected; 503 `DATABASE_UNAVAILABLE` after disconnecting MongoDB |
 | `integration/concurrency.test.js` | **Rule 7:** 2 simultaneous identical requests → exactly `[201, 409]`; 10 simultaneous overlapping requests → exactly one 201; no duplicate `(roomId, date)` rows and no orphaned rows; different rooms in parallel all succeed |
 
 The suite was executed against **both** deployment types:
 
 | Deployment | Write path | Result |
 |---|---|---|
-| Standalone `mongod` 9.0.4 (127.0.0.1:27017) | compensating-write fallback | 80 / 80 passed |
-| Single-node replica set `rs0` (127.0.0.1:27018) | `withTransaction` | 80 / 80 passed |
+| Standalone `mongod` 9.0.4 (127.0.0.1:27017) | compensating-write fallback | 89 / 89 passed |
+| Single-node replica set `rs0` (127.0.0.1:27018) | `withTransaction` | 80 / 80 passed (run before the stats/health suites were added) |
 
-### Client — 27 tests, 4 files (all passing)
+### Client — 52 tests, 8 files (all passing)
 
-`validation.test.js` (search + guest rules, phone variants), `SearchForm.test.jsx` (render, submit, local validation, loading state), `RoomCard.test.jsx` (fields, select, selected state), `BookingForm.test.jsx` (summary, local phone validation, submit payload, submitting state, conflict banner with refresh action, server field errors, network error).
+`validation.test.js` (search + guest rules, phone variants) · `SearchForm.test.jsx` (render, submit, local validation, loading) · `RoomCard.test.jsx` (fields, select, selected state) · `BookingForm.test.jsx` (summary, local validation, trimmed payload, server field errors, prefill) · `BookingPanel.test.jsx` (accessible dialog + initial focus, review shows guest/room/dates/total before sending, invalid phone blocked, edit keeps values, exact confirm payload, 409 → *Choose another room*, 400 → back to details with field error, network error retryable, no close/resubmit while in flight, Escape) · `StatsCards.test.jsx` (API figures rendered verbatim, skeleton, error + retry, stale data kept on refresh error) · `RecentBookings.test.jsx` (status badges, stay phases, cancel only for confirmed, two-step confirm, mobile cards) · `Header.test.jsx` (online / database offline / API offline, click re-check and recovery, 15 s polling).
 
 ### Manual end-to-end (real browser against the running stack)
 
@@ -417,7 +422,8 @@ Verified in the browser with the API on a standalone MongoDB: categories loaded 
 - [x] Idempotent seed with a maintenance room; `--reset` option
 - [x] React dashboard: search, results, selection, guest form, confirmation, recent bookings, cancel; loading / empty / error / conflict / network states; double-submit guard; auto-refresh; responsive; accessible
 - [x] Central error middleware, consistent envelope, CORS allow-list, Helmet, env config, no secrets in git
-- [x] 107 automated tests (server 80, client 27), Postman collection
+- [x] Summary cards from live data, booking side panel with review step, status indicators, responsive bookings list, live API/database health indicator
+- [x] 141 automated tests (server 89, client 52), Postman collection
 - [x] Git history with incremental commits
 
 ## 17. Known limitations

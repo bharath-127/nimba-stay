@@ -36,7 +36,13 @@ export default function RoomCard({ room, selected = false, onSelect }) {
           <p className="text-[11px] uppercase tracking-wide text-slate-500">Total stay</p>
           <p className="text-lg font-semibold text-slate-900">{formatINR(room.totalPrice)}</p>
         </div>
-        <Button variant={selected ? 'secondary' : 'primary'} onClick={() => onSelect(room)} aria-pressed={selected}>
+        <Button
+          variant={selected ? 'secondary' : 'primary'}
+          onClick={() => onSelect(room)}
+          aria-pressed={selected}
+          aria-haspopup="dialog"
+          className="shrink-0"
+        >
           {selected ? 'Selected' : 'Book now'}
         </Button>
       </div>

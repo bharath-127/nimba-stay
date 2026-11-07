@@ -1,32 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Header from '../components/layout/Header.jsx';
 import Card from '../components/ui/Card.jsx';
 import Button from '../components/ui/Button.jsx';
 import Alert from '../components/ui/Alert.jsx';
+import StatsCards from '../components/dashboard/StatsCards.jsx';
 import SearchForm from '../components/availability/SearchForm.jsx';
 import RoomList from '../components/availability/RoomList.jsx';
-import BookingForm from '../components/booking/BookingForm.jsx';
-import BookingSuccess from '../components/booking/BookingSuccess.jsx';
+import BookingPanel from '../components/booking/BookingPanel.jsx';
 import RecentBookings from '../components/booking/RecentBookings.jsx';
 import { useCategories } from '../hooks/useCategories.js';
 import { useAvailability } from '../hooks/useAvailability.js';
 import { useCreateBooking } from '../hooks/useCreateBooking.js';
 import { useBookings } from '../hooks/useBookings.js';
+import { useStats } from '../hooks/useStats.js';
 import { todayIso, addDays } from '../utils/dates.js';
 
 /**
  * The single front-desk screen. Owns the flow:
- *   search → pick a room → enter guest → confirm → success (availability refreshed)
- * All business data (prices, nights, categories, conflicts) comes from the API.
+ *   search → Book now → side panel (details → review → confirmed)
+ * After any booking or cancellation the availability list, the recent
+ * bookings and the summary cards are re-fetched, so every number on screen
+ * comes from the API.
  */
 export default function DashboardPage() {
   const { categories, loading: categoriesLoading, error: categoriesError } = useCategories();
   const availability = useAvailability();
   const createBooking = useCreateBooking();
   const recent = useBookings({ limit: 10 });
+  const stats = useStats();
 
   const [selectedRoom, setSelectedRoom] = useState(null);
-  const bookingPanelRef = useRef(null);
 
   const initialSearch = { checkIn: todayIso(), checkOut: addDays(todayIso(), 1), category: '' };
 
@@ -44,41 +47,35 @@ export default function DashboardPage() {
     setSelectedRoom(room);
   };
 
-  useEffect(() => {
-    if (selectedRoom && bookingPanelRef.current) {
-      bookingPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [selectedRoom]);
-
-  const handleSubmitBooking = async (payload) => {
-    const result = await createBooking.submit(payload);
-    if (result.ok) {
-      setSelectedRoom(null);
-      // The room is now taken for these dates: refresh so it disappears from the list.
-      availability.refresh();
-      recent.refresh();
-    } else if (result.error?.isConflict) {
-      // Someone else got the room between search and confirm — re-sync the list
-      // right away so the stale room disappears; the form keeps the conflict banner.
-      availability.refresh();
-    }
-  };
-
-  const handleRefreshAfterConflict = () => {
+  const closePanel = () => {
+    if (createBooking.submitting) return;
     setSelectedRoom(null);
     createBooking.reset();
-    availability.refresh();
+  };
+
+  /** Called by the panel's review step. Returns the result so the panel can react immediately. */
+  const handleConfirmBooking = async (payload) => {
+    const result = await createBooking.submit(payload);
+    if (result.ok) {
+      // The room is now taken for these nights: re-sync everything that shows it.
+      availability.refresh();
+      recent.refresh();
+      stats.refresh();
+    } else if (result.error?.isConflict) {
+      // Someone else got the room between search and confirm — drop it from the list now.
+      availability.refresh();
+      stats.refresh();
+    }
+    return result;
   };
 
   const handleCancelBooking = async (id) => {
     const updated = await recent.cancel(id);
-    // A cancelled booking frees its nights: refresh availability if a search is showing.
-    if (updated && availability.status === 'success') availability.refresh();
-  };
-
-  const startNewBooking = () => {
-    createBooking.reset();
-    setSelectedRoom(null);
+    if (updated) {
+      // The server released the booking's nights: refresh what depends on them.
+      stats.refresh();
+      if (availability.status === 'success') availability.refresh();
+    }
   };
 
   const { checkIn, checkOut } = availability.params ?? {};
@@ -87,12 +84,16 @@ export default function DashboardPage() {
     <div id="top" className="min-h-screen">
       <Header />
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-slate-900">Room Availability &amp; Booking</h1>
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        <div className="mb-6">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">Room Availability &amp; Booking</h1>
           <p className="mt-1 text-sm text-slate-500">
             Check which rooms are free for a stay and book a guest in. A room can never be booked twice for the same night.
           </p>
+        </div>
+
+        <div className="mb-6">
+          <StatsCards stats={stats.data} loading={stats.loading} error={stats.error} onRetry={stats.refresh} />
         </div>
 
         {categoriesError && (
@@ -115,8 +116,8 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          {/* Results + booking */}
-          <div className="space-y-6 lg:col-span-2">
+          {/* Results */}
+          <div className="lg:col-span-2">
             <Card
               eyebrow="Step 2"
               title="Available rooms"
@@ -138,33 +139,11 @@ export default function DashboardPage() {
                 onRetry={availability.refresh}
               />
             </Card>
-
-            <div ref={bookingPanelRef}>
-              {createBooking.booking ? (
-                <Card eyebrow="Done" title="Booking confirmation">
-                  <BookingSuccess booking={createBooking.booking} onNewBooking={startNewBooking} />
-                </Card>
-              ) : selectedRoom ? (
-                <Card eyebrow="Step 3" title="Guest details" subtitle={`Booking room ${selectedRoom.roomNumber}`}>
-                  <BookingForm
-                    key={selectedRoom.id}
-                    room={selectedRoom}
-                    checkIn={checkIn}
-                    checkOut={checkOut}
-                    submitting={createBooking.submitting}
-                    error={createBooking.error}
-                    onSubmit={handleSubmitBooking}
-                    onCancel={startNewBooking}
-                    onRefreshAvailability={handleRefreshAfterConflict}
-                  />
-                </Card>
-              ) : null}
-            </div>
           </div>
         </div>
 
         {/* Recent bookings */}
-        <div className="mt-8">
+        <div className="mt-6 sm:mt-8">
           <Card
             id="bookings"
             title="Recent bookings"
@@ -191,6 +170,19 @@ export default function DashboardPage() {
       <footer className="border-t border-sand-200 py-6 text-center text-xs text-slate-400">
         Nimba Stay · Front-desk booking tool for Nimba Nature Cure &amp; Holistic Centre
       </footer>
+
+      {selectedRoom && checkIn && checkOut && (
+        <BookingPanel
+          key={`${selectedRoom.id}:${checkIn}:${checkOut}`}
+          room={selectedRoom}
+          checkIn={checkIn}
+          checkOut={checkOut}
+          submitting={createBooking.submitting}
+          onConfirm={handleConfirmBooking}
+          onClose={closePanel}
+          onChooseAnotherRoom={closePanel}
+        />
+      )}
     </div>
   );
 }

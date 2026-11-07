@@ -1,33 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Input from '../ui/Input.jsx';
-import Button from '../ui/Button.jsx';
 import Alert from '../ui/Alert.jsx';
-import { formatDisplayDate } from '../../utils/dates.js';
-import { formatINR, pluralize } from '../../utils/format.js';
+import StaySummary from './StaySummary.jsx';
 import { validateGuest, hasErrors } from '../../utils/validation.js';
 
-function Row({ label, value, strong = false }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5 text-sm">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className={`text-right ${strong ? 'text-base font-semibold text-slate-900' : 'font-medium text-slate-800'}`}>{value}</dd>
-    </div>
-  );
-}
+export const BOOKING_FORM_ID = 'booking-details-form';
 
 /**
- * Guest details for the selected room. Everything shown in the summary
- * (nights, rate, total) comes from the availability response — the client
- * never computes or submits a price.
+ * Step 1 of the booking panel: guest details for the selected stay.
+ * Submitting validates locally and hands the trimmed values to the parent,
+ * which moves to the review step — no request is sent from here. The submit
+ * button lives in the panel footer and targets this form by id.
+ *
+ * `serverErrors` are field errors returned by the API (400) after a confirm
+ * attempt; `serverMessage` covers 400s for fields not shown on this form.
  */
-export default function BookingForm({ room, checkIn, checkOut, submitting, error, onSubmit, onCancel, onRefreshAvailability }) {
-  const [values, setValues] = useState({ guestName: '', phone: '' });
-  const [errors, setErrors] = useState({});
-
-  // Merge server-side validation details into the field errors when they arrive.
-  useEffect(() => {
-    if (error?.isValidation) setErrors((prev) => ({ ...prev, ...error.fieldErrors }));
-  }, [error]);
+export default function BookingForm({ room, checkIn, checkOut, initialValues, serverErrors = {}, serverMessage, onSubmit }) {
+  const [values, setValues] = useState(initialValues ?? { guestName: '', phone: '' });
+  const [errors, setErrors] = useState(serverErrors);
 
   const update = (field) => (e) => {
     const next = { ...values, [field]: e.target.value };
@@ -37,26 +27,23 @@ export default function BookingForm({ room, checkIn, checkOut, submitting, error
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (submitting) return;
     const nextErrors = validateGuest(values);
     setErrors(nextErrors);
     if (hasErrors(nextErrors)) return;
-    onSubmit({ roomId: room.id, guestName: values.guestName.trim(), phone: values.phone.trim(), checkIn, checkOut });
+    onSubmit({ guestName: values.guestName.trim(), phone: values.phone.trim() });
   };
 
-  const showBanner = error && !error.isValidation;
-
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-5" aria-label="Guest booking form">
-      <dl className="rounded-lg border border-sand-200 bg-sand-50 px-4 py-2 divide-y divide-sand-200">
-        <Row label="Room" value={`${room.roomNumber} · ${room.category}`} />
-        <Row label="Check-in" value={formatDisplayDate(checkIn)} />
-        <Row label="Check-out" value={formatDisplayDate(checkOut)} />
-        <Row label="Rate" value={`${formatINR(room.pricePerNight)} × ${pluralize(room.nights, 'night')}`} />
-        <Row label="Total booking amount" value={formatINR(room.totalPrice)} strong />
-      </dl>
+    <form id={BOOKING_FORM_ID} onSubmit={handleSubmit} noValidate className="space-y-5" aria-label="Guest details">
+      <StaySummary room={room} checkIn={checkIn} checkOut={checkOut} />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {serverMessage && (
+        <Alert tone="error" title="Please check the booking details">
+          {serverMessage}
+        </Alert>
+      )}
+
+      <div className="space-y-4">
         <Input
           id="guestName"
           label="Guest full name"
@@ -66,9 +53,9 @@ export default function BookingForm({ room, checkIn, checkOut, submitting, error
           value={values.guestName}
           onChange={update('guestName')}
           error={errors.guestName}
-          disabled={submitting}
           maxLength={80}
           required
+          data-autofocus
         />
         <Input
           id="phone"
@@ -81,41 +68,9 @@ export default function BookingForm({ room, checkIn, checkOut, submitting, error
           onChange={update('phone')}
           error={errors.phone}
           hint="Exactly 10 digits, no spaces"
-          disabled={submitting}
           maxLength={10}
           required
         />
-      </div>
-
-      {showBanner && (
-        <Alert
-          tone={error.isConflict ? 'warning' : 'error'}
-          title={
-            error.isConflict
-              ? 'This room was just booked by someone else'
-              : error.isNetworkError
-                ? 'Cannot reach the server'
-                : 'Booking failed'
-          }
-          action={
-            error.isConflict ? (
-              <Button variant="secondary" size="sm" onClick={onRefreshAvailability}>
-                Refresh availability
-              </Button>
-            ) : undefined
-          }
-        >
-          {error.message}
-        </Alert>
-      )}
-
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Button variant="ghost" onClick={onCancel} disabled={submitting}>
-          Back to rooms
-        </Button>
-        <Button type="submit" size="lg" loading={submitting}>
-          {submitting ? 'Confirming…' : `Confirm booking · ${formatINR(room.totalPrice)}`}
-        </Button>
       </div>
     </form>
   );
